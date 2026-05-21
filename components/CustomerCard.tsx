@@ -6,6 +6,8 @@ interface CustomerCardProps {
   name: string;
   phone: string;
   location: string;
+  distance?: string;
+  eta?: string;
   darkMode?: boolean;
 }
 
@@ -13,6 +15,8 @@ export default function CustomerCard({
   name,
   phone,
   location,
+  distance,
+  eta,
   darkMode = true,
 }: CustomerCardProps) {
   const cardBg = darkMode ? '#1E2022' : '#FFFFFF';
@@ -59,6 +63,14 @@ export default function CustomerCard({
       });
   };
 
+  const handleNavigation = () => {
+    Alert.alert(
+      'Simulated GPS Routing Active',
+      `Starting live turn-by-turn routing to customer's breakdown location:\n\nLocation: ${location}\n\nDistance: ${distance || '3.5 km'} away | ETA: ${eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`,
+      [{ text: 'OK', style: 'default' }]
+    );
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
       <View style={styles.header}>
@@ -73,23 +85,30 @@ export default function CustomerCard({
         </View>
       </View>
 
-      {/* Action buttons (Call & SMS) */}
+      {/* Action buttons (Call, Message, and GPS Route) */}
       <View style={styles.actions}>
         <TouchableOpacity onPress={handleCall} style={[styles.actionBtn, styles.callBtn]}>
-          <Ionicons name="call" size={16} color="#FFFFFF" style={styles.btnIcon} />
-          <Text style={styles.callBtnText}>Call Customer</Text>
+          <Ionicons name="call" size={14} color="#FFFFFF" style={styles.btnIcon} />
+          <Text style={styles.callBtnText}>Call</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleSMS} style={[styles.actionBtn, styles.smsBtn]}>
-          <Ionicons name="chatbubble" size={16} color="#F59E0B" style={styles.btnIcon} />
+          <Ionicons name="chatbubble" size={14} color="#F59E0B" style={styles.btnIcon} />
           <Text style={styles.smsBtnText}>Message</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleNavigation} style={[styles.actionBtn, styles.navBtn]}>
+          <Ionicons name="navigate" size={14} color="#FFFFFF" style={styles.btnIcon} />
+          <Text style={styles.navBtnText}>Navigate</Text>
         </TouchableOpacity>
       </View>
 
       {/* Service location info */}
       <View style={[styles.locationContainer, { borderTopColor: cardBorder }]}>
-        <Ionicons name="location" size={16} color="#F59E0B" />
-        <Text style={[styles.locationText, { color: textSecondary }]}>{location}</Text>
+        <Ionicons name="location" size={16} color="#EF4444" />
+        <Text style={[styles.locationText, { color: textSecondary }]}>
+          Stranded: {location} {distance ? `(${distance} away • ${eta} ETA)` : ''}
+        </Text>
       </View>
     </View>
   );
@@ -161,6 +180,14 @@ const styles = StyleSheet.create({
   },
   smsBtnText: {
     color: '#F59E0B',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  navBtn: {
+    backgroundColor: '#06B6D4',
+  },
+  navBtnText: {
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },

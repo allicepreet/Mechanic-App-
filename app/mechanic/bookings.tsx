@@ -32,7 +32,7 @@ export default function BookingsScreen() {
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(125, 160, 169, 0.1)';
   const primaryAccent = '#7DA0A9';
 
-  // Derived filter count tags
+
   const pendingCount = bookings.filter((b) => b.status === 'pending').length;
   const activeCount = bookings.filter((b) => b.status === 'accepted' || b.status === 'in_progress').length;
   const completedCount = bookings.filter((b) => b.status === 'completed').length;
@@ -41,15 +41,15 @@ export default function BookingsScreen() {
     if (activeFilter === 'pending') return b.status === 'pending';
     if (activeFilter === 'active') return b.status === 'accepted' || b.status === 'in_progress';
     if (activeFilter === 'completed') return b.status === 'completed';
-    return true; // 'all' - includes rejected too
+    return true; 
   });
 
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
-      {/* Header Bar */}
+      
       <Header title="Bookings" showBack={false} darkMode={darkMode} />
 
-      {/* Dynamic Segmented Filters Bar */}
+      
       <View style={[styles.filterBar, { borderBottomColor: cardBorder }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
           <TouchableOpacity
@@ -106,7 +106,7 @@ export default function BookingsScreen() {
         </ScrollView>
       </View>
 
-      {/* Bookings List */}
+      
       <ScrollView
         contentContainerStyle={[styles.listContainer, { paddingBottom: 110 }]}
         showsVerticalScrollIndicator={false}
@@ -149,7 +149,7 @@ export default function BookingsScreen() {
         )}
       </ScrollView>
 
-      {/* Reusable Premium Floating Bottom Navigation Bar */}
+      
       <View style={[styles.navbarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={[styles.navbar, darkMode ? styles.navbarDark : styles.navbarLight]}>
           <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/dashboard')}>

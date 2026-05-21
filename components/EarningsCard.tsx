@@ -43,7 +43,7 @@ export default function EarningsCard({
       {/* Grid splits for daily & total */}
       <View style={[styles.grid, { borderTopColor: cardBorder }]}>
         <View style={styles.gridColumn}>
-          <Text style={[styles.gridLabel, { color: textSecondary }]}>Today's Earnings</Text>
+          <Text style={[styles.gridLabel, { color: textSecondary }]}>{"Today's Earnings"}</Text>
           <Text style={[styles.gridValue, { color: '#10B981' }]}>+Rs. {daily.toFixed(0)}</Text>
         </View>
 

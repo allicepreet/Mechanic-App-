@@ -1,17 +1,10 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Alert } from 'react-native';
 import { router } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Booking } from './MechanicContext';
+import { Booking, getVehicleImage, useMechanic } from './MechanicContext';
 import SwipeButton from './SwipeButton';
-
-const VEHICLE_IMAGES: Record<string, any> = {
-  B001: require('@/assets/images/tesla.png'),
-  B004: require('@/assets/images/audi.png'),
-  B002: require('@/assets/images/porsche.png'),
-  B005: require('@/assets/images/mustang.png'),
-};
 
 interface BookingCardProps {
   booking: Booking;
@@ -26,6 +19,7 @@ export default function BookingCard({
   onReject,
   darkMode = true,
 }: BookingCardProps) {
+  const { updateBookingStatus } = useMechanic();
   const cardBg = darkMode ? '#1E2022' : '#FFFFFF';
   const textPrimary = darkMode ? '#ECEDEE' : '#0F172A';
   const textSecondary = darkMode ? '#9BA1A6' : '#64748B';
@@ -57,7 +51,7 @@ export default function BookingCard({
     });
   };
 
-  const vehicleImg = VEHICLE_IMAGES[booking.id] || require('@/assets/images/banner.png');
+  const vehicleImg = getVehicleImage(booking.vehicle);
 
   const cardContent = (
     <>
@@ -94,6 +88,14 @@ export default function BookingCard({
       <View style={styles.customerRow}>
         <Ionicons name="person-outline" size={14} color={textSecondary} />
         <Text style={[styles.customerName, { color: textSecondary }]}>{booking.customerName}</Text>
+      </View>
+
+      {/* Breakdown location summary */}
+      <View style={styles.locationSummaryRow}>
+        <Ionicons name="location-outline" size={14} color="#EF4444" style={{ marginRight: 6 }} />
+        <Text style={[styles.locationSummaryText, { color: textSecondary }]} numberOfLines={1}>
+          Stranded: {booking.location} {booking.distance ? `(${booking.distance} away)` : ''}
+        </Text>
       </View>
 
       {/* Date, Time, and Price summary line */}
@@ -184,11 +186,49 @@ export default function BookingCard({
 
       {/* Informative footer for active/in-progress items */}
       {(booking.status === 'accepted' || booking.status === 'in_progress') && (
-        <View style={[styles.footerPrompt, { borderTopColor: cardBorder }]}>
-          <Text style={[styles.footerText, { color: textSecondary }]}>
-            {booking.status === 'accepted' ? 'Ready to begin diagnostic checks' : 'Active mechanic operations ongoing'}
-          </Text>
-          <Ionicons name="arrow-forward" size={14} color={statusStyle.text} />
+        <View style={[styles.activeActionsBlock, { borderTopColor: cardBorder }]}>
+          <View style={styles.activeDetailsRow}>
+            <Ionicons name="location-sharp" size={15} color="#EF4444" style={{ marginRight: 6 }} />
+            <Text style={[styles.activeDetailsText, { color: textSecondary }]} numberOfLines={1}>
+              {booking.location}
+            </Text>
+          </View>
+          {booking.distance && (
+            <Text style={[styles.routeSubText, { color: textSecondary }]}>
+              Rider Distance: <Text style={{ color: textPrimary, fontWeight: '700' }}>{booking.distance}</Text> • ETA: <Text style={{ color: '#06B6D4', fontWeight: '700' }}>{booking.eta}</Text>
+            </Text>
+          )}
+
+          <TouchableOpacity
+            style={[styles.gpsNavigateBtn, { backgroundColor: booking.status === 'accepted' ? '#06B6D4' : '#3B82F6' }]}
+            onPress={(e) => {
+              e.stopPropagation(); // prevent card click navigation
+              Alert.alert(
+                'Simulated GPS Routing Active',
+                `Departing mobile dispatch hub!\n\nRouting turn-by-turn directions to client's stranded vehicle:\n\nLocation: ${booking.location}\n\nDistance: ${booking.distance || '3.5 km'} | ETA: ${booking.eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      if (booking.status === 'accepted') {
+                        updateBookingStatus(booking.id, 'in_progress');
+                      }
+                      router.push({
+                        pathname: '/mechanic/booking-details',
+                        params: { id: booking.id },
+                      });
+                    },
+                    style: 'default',
+                  },
+                ]
+              );
+            }}
+          >
+            <Ionicons name="navigate-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.gpsNavigateBtnText}>
+              {booking.status === 'accepted' ? 'Start Dispatch Navigation' : 'Continue Trip Navigation'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
@@ -320,16 +360,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  footerPrompt: {
+  locationSummaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  locationSummaryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  activeActionsBlock: {
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
+    gap: 8,
   },
-  footerText: {
-    fontSize: 12,
+  activeDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeDetailsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  routeSubText: {
+    fontSize: 11,
     fontWeight: '500',
+    marginTop: -2,
+  },
+  gpsNavigateBtn: {
+    height: 38,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  gpsNavigateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

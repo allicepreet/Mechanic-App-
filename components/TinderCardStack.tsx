@@ -2,27 +2,17 @@ import React, { useRef, useState } from 'react';
 import { StyleSheet, View, Text, Animated, PanResponder, Dimensions, TouchableOpacity, Image } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Booking } from './MechanicContext';
+import { Booking, getVehicleImage } from './MechanicContext';
 import { router } from 'expo-router';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
 
-const VEHICLE_IMAGES: Record<string, any> = {
-  B001: require('@/assets/images/tesla.png'),
-  B003: require('@/assets/images/tesla.png'),
-  B004: require('@/assets/images/audi.png'),
-  B006: require('@/assets/images/porsche.png'),
-  B007: require('@/assets/images/audi.png'),
-  B008: require('@/assets/images/mustang.png'),
-  B002: require('@/assets/images/porsche.png'),
-  B005: require('@/assets/images/mustang.png'),
-};
-
 interface TinderCardStackProps {
   bookings: Booking[];
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
+  onSwipeStart: (id: string) => void;
   darkMode?: boolean;
 }
 
@@ -30,10 +20,21 @@ export default function TinderCardStack({
   bookings,
   onAccept,
   onReject,
+  onSwipeStart,
   darkMode = true,
 }: TinderCardStackProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [localSwipedIds, setLocalSwipedIds] = useState<string[]>([]);
+  const activeBookings = bookings.filter((b) => !localSwipedIds.includes(b.id));
   const position = useRef(new Animated.ValueXY()).current;
+
+  // Store activeBookings and callbacks in refs to eliminate stale closure bugs with PanResponder
+  const activeBookingsRef = useRef(activeBookings);
+  activeBookingsRef.current = activeBookings;
+
+  const propsRef = useRef({ onAccept, onReject, onSwipeStart });
+  propsRef.current = { onAccept, onReject, onSwipeStart };
+
+  const forceSwipeRef = useRef<any>(null);
 
   const cardBg = darkMode ? '#1E293B' : '#FFFFFF';
   const textPrimary = darkMode ? '#F8FAFC' : '#1E293B';
@@ -50,9 +51,9 @@ export default function TinderCardStack({
       },
       onPanResponderRelease: (event, gesture) => {
         if (gesture.dx > SWIPE_THRESHOLD) {
-          forceSwipe('right');
+          forceSwipeRef.current?.('right');
         } else if (gesture.dx < -SWIPE_THRESHOLD) {
-          forceSwipe('left');
+          forceSwipeRef.current?.('left');
         } else {
           resetPosition();
         }
@@ -68,23 +69,30 @@ export default function TinderCardStack({
   };
 
   const forceSwipe = (direction: 'right' | 'left') => {
+    if (activeBookingsRef.current.length === 0) return;
+    const item = activeBookingsRef.current[0];
+    
+    // Instantly notify parent to update header count and trigger any layout syncing
+    propsRef.current.onSwipeStart(item.id);
+
     const x = direction === 'right' ? SCREEN_WIDTH + 100 : -SCREEN_WIDTH - 100;
     Animated.timing(position, {
       toValue: { x, y: 0 },
       duration: 250,
       useNativeDriver: false,
-    }).start(() => onSwipeComplete(direction));
+    }).start(() => onSwipeComplete(direction, item));
   };
 
-  const onSwipeComplete = (direction: 'right' | 'left') => {
-    const item = bookings[currentIndex];
+  forceSwipeRef.current = forceSwipe;
+
+  const onSwipeComplete = (direction: 'right' | 'left', item: Booking) => {
     if (direction === 'right') {
-      onAccept(item.id);
+      propsRef.current.onAccept(item.id);
     } else {
-      onReject(item.id);
+      propsRef.current.onReject(item.id);
     }
+    setLocalSwipedIds((prev) => [...prev, item.id]);
     position.setValue({ x: 0, y: 0 });
-    setCurrentIndex((prev) => prev + 1);
   };
 
   const getCardStyle = () => {
@@ -113,7 +121,7 @@ export default function TinderCardStack({
   });
 
   const renderStack = () => {
-    if (currentIndex >= bookings.length) {
+    if (activeBookings.length === 0) {
       return (
         <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Ionicons name="checkmark-done-circle" size={48} color="#10B981" />
@@ -125,11 +133,10 @@ export default function TinderCardStack({
       );
     }
 
-    return bookings
+    return activeBookings
+      .slice(0, 3) // Only render the top 3 cards in stack for maximum performance and gorgeous layered layout depth
       .map((item, idx) => {
-        if (idx < currentIndex) return null;
-
-        const isCurrent = idx === currentIndex;
+        const isCurrent = idx === 0;
 
         if (!isCurrent) {
           // Render underlying cards in stack for depth
@@ -142,14 +149,14 @@ export default function TinderCardStack({
                 {
                   backgroundColor: cardBg,
                   borderColor: cardBorder,
-                  top: 10 * (idx - currentIndex),
-                  transform: [{ scale: 1 - 0.04 * (idx - currentIndex) }],
+                  top: 10 * idx,
+                  transform: [{ scale: 1 - 0.04 * idx }],
                   zIndex: -idx,
                 },
               ]}
             >
               <Image
-                source={VEHICLE_IMAGES[item.id] || require('@/assets/images/banner.png')}
+                source={getVehicleImage(item.vehicle)}
                 style={styles.cardImage}
                 resizeMode="cover"
               />
@@ -186,7 +193,7 @@ export default function TinderCardStack({
 
             {/* Gorgeous Vehicle Image Cover */}
             <Image
-              source={VEHICLE_IMAGES[item.id] || require('@/assets/images/banner.png')}
+              source={getVehicleImage(item.vehicle)}
               style={styles.cardImage}
               resizeMode="cover"
             />
@@ -215,9 +222,31 @@ export default function TinderCardStack({
               <Text style={[styles.service, { color: textPrimary }]}>{item.serviceType}</Text>
               {item.notes ? (
                 <Text style={[styles.notes, { color: textSecondary }]} numberOfLines={2}>
-                  "{item.notes}"
+                  {`"${item.notes}"`}
                 </Text>
               ) : null}
+            </View>
+
+            {/* Stranded breakdown location, distance, and ETA */}
+            <View style={styles.routeContainer}>
+              <View style={styles.locationRow}>
+                <Ionicons name="location-sharp" size={14} color="#EF4444" />
+                <Text style={[styles.locationText, { color: textPrimary }]} numberOfLines={1}>
+                  {item.location}
+                </Text>
+              </View>
+              {item.distance && (
+                <View style={styles.distanceRow}>
+                  <View style={[styles.badge, { backgroundColor: darkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)' }]}>
+                    <Ionicons name="speedometer-outline" size={11} color="#F59E0B" />
+                    <Text style={[styles.badgeText, { color: '#F59E0B' }]}>{item.distance} away</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: darkMode ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.08)' }]}>
+                    <Ionicons name="time-outline" size={11} color="#06B6D4" />
+                    <Text style={[styles.badgeText, { color: '#06B6D4' }]}>{item.eta} ETA</Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Location & Time Footer info */}
@@ -241,10 +270,10 @@ export default function TinderCardStack({
   };
 
   const handleInfoPress = () => {
-    if (currentIndex < bookings.length) {
+    if (activeBookings.length > 0) {
       router.push({
         pathname: '/mechanic/booking-details',
-        params: { id: bookings[currentIndex].id },
+        params: { id: activeBookings[0].id },
       });
     }
   };
@@ -255,7 +284,7 @@ export default function TinderCardStack({
       <View style={styles.deck}>{renderStack()}</View>
 
       {/* Tinder-like Bottom Circular Control Buttons */}
-      {currentIndex < bookings.length && (
+      {activeBookings.length > 0 && (
         <View style={styles.controls}>
           <TouchableOpacity
             activeOpacity={0.8}
@@ -462,5 +491,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 2,
+  },
+  routeContainer: {
+    marginVertical: 8,
+    gap: 4,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
+    flex: 1,
+  },
+  distanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    gap: 3,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
 });

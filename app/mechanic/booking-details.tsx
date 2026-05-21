@@ -1,20 +1,13 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useMechanic, Booking } from '@/components/MechanicContext';
+import { useMechanic, Booking, getVehicleImage } from '@/components/MechanicContext';
 import Header from '@/components/Header';
 import CustomerCard from '@/components/CustomerCard';
 import StatusButton from '@/components/StatusButton';
 import SwipeButton from '@/components/SwipeButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-
-const VEHICLE_IMAGES: Record<string, any> = {
-  B001: require('@/assets/images/tesla.png'),
-  B004: require('@/assets/images/audi.png'),
-  B002: require('@/assets/images/porsche.png'),
-  B005: require('@/assets/images/mustang.png'),
-};
 
 export default function BookingDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +37,7 @@ export default function BookingDetailsScreen() {
     );
   }
 
-  // Stepper state resolver
+
   const getStepperActiveIndex = (status: Booking['status']) => {
     switch (status) {
       case 'pending': return 0;
@@ -57,12 +50,12 @@ export default function BookingDetailsScreen() {
 
   const activeIndex = getStepperActiveIndex(booking.status);
 
-  // Stepper node labels
+  
   const steps = [
     { label: 'Requested', icon: 'file-text-outline' },
-    { label: 'Confirmed', icon: 'checkmark-circle-outline' },
-    { label: 'In Shop', icon: 'build-outline' },
-    { label: 'Completed', icon: 'trophy-outline' },
+    { label: 'Accepted', icon: 'checkmark-circle-outline' },
+    { label: 'En Route', icon: 'navigate-outline' },
+    { label: 'Completed', icon: 'checkmark-done-outline' },
   ];
 
   const handleUpdateStatus = () => {
@@ -73,7 +66,7 @@ export default function BookingDetailsScreen() {
     }
   };
 
-  const vehicleImg = VEHICLE_IMAGES[booking.id] || require('@/assets/images/banner.png');
+  const vehicleImg = getVehicleImage(booking.vehicle);
 
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
@@ -81,7 +74,7 @@ export default function BookingDetailsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Premium Hero Vehicle Image Banner */}
+ 
         <View style={[styles.heroImageContainer, { borderColor: cardBorder }]}>
           <Image
             source={vehicleImg}
@@ -93,7 +86,79 @@ export default function BookingDetailsScreen() {
           </View>
         </View>
 
-        {/* Horizontal Progress Stepper */}
+        {booking.status === 'in_progress' && (
+          <View style={[styles.telemetryHud, { backgroundColor: cardBg, borderColor: '#06B6D4' }]}>
+            <View style={styles.hudHeader}>
+              <View style={styles.hudPulseRow}>
+                <View style={styles.pulseContainer}>
+                  <View style={styles.pulseOuter}>
+                    <View style={styles.pulseInner} />
+                  </View>
+                </View>
+                <Text style={styles.hudTitle}>GPS DISPATCH SYSTEM ACTIVE</Text>
+              </View>
+              <View style={styles.hudBadge}>
+                <Text style={styles.hudBadgeText}>EN ROUTE</Text>
+              </View>
+            </View>
+
+            <View style={styles.hudContent}>
+              <View style={styles.telemetryStatsGrid}>
+                <View style={styles.telemetryStatCell}>
+                  <Ionicons name="speedometer-outline" size={14} color="#06B6D4" />
+                  <View style={{ marginLeft: 6 }}>
+                    <Text style={styles.telemetryStatLabel}>VAN SPEED</Text>
+                    <Text style={[styles.telemetryStatValue, { color: textPrimary }]}>42 km/h</Text>
+                  </View>
+                </View>
+                <View style={styles.telemetryStatCell}>
+                  <Ionicons name="location-outline" size={14} color="#EF4444" />
+                  <View style={{ marginLeft: 6 }}>
+                    <Text style={styles.telemetryStatLabel}>LIVE COORDS</Text>
+                    <Text style={[styles.telemetryStatValue, { color: textPrimary, fontSize: 10 }]}>30.2672° N, 97.7431° W</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.routeVisualizer, { borderColor: cardBorder }]}>
+                <View style={styles.visualizerNodeRow}>
+                  <View style={[styles.visualNode, { backgroundColor: '#7DA0A9' }]}>
+                    <Ionicons name="business" size={10} color="#FFFFFF" />
+                  </View>
+                  <Text style={[styles.visualNodeText, { color: textSecondary }]} numberOfLines={1}>Dispatch Hub</Text>
+                </View>
+                <View style={styles.visualConnectorContainer}>
+                  <View style={styles.visualConnectorDashed} />
+                  <View style={styles.visualConnectorVehicle}>
+                    <MaterialCommunityIcons name="truck-delivery" size={12} color="#06B6D4" />
+                  </View>
+                </View>
+                <View style={styles.visualizerNodeRow}>
+                  <View style={[styles.visualNode, { backgroundColor: '#EF4444' }]}>
+                    <Ionicons name="location-sharp" size={10} color="#FFFFFF" />
+                  </View>
+                  <Text style={[styles.visualNodeText, { color: textPrimary }]} numberOfLines={1}>Breakdown Site</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.simulateNavBtn}
+                onPress={() => {
+                  Alert.alert(
+                    'Launching Built-in HUD Maps',
+                    'Recalibrating high-precision laser telemetry...\n\nSyncing route coordinates with vehicle head-up display dashboard.\n\nSimulating turn-by-turn auditory guidance: "In 200 meters, turn right on Lamar Blvd."',
+                    [{ text: 'Dismiss HUD Overlay', style: 'default' }]
+                  );
+                }}
+              >
+                <Ionicons name="navigate-circle-outline" size={15} color="#06B6D4" style={{ marginRight: 6 }} />
+                <Text style={styles.simulateNavBtnText}>INSPECT HIGH-ACCURACY GPS TRACKER</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {booking.status !== 'rejected' && (
           <View style={[styles.stepperCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <Text style={[styles.cardTitle, { color: textSecondary }]}>PROGRESS STATUS</Text>
@@ -152,10 +217,12 @@ export default function BookingDetailsScreen() {
           name={booking.customerName}
           phone={booking.customerPhone}
           location={booking.location}
+          distance={booking.distance}
+          eta={booking.eta}
           darkMode={darkMode}
         />
 
-        {/* Vehicle Information Panel */}
+ 
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Vehicle Details</Text>
         <View style={[styles.infoCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.infoRow}>
@@ -192,17 +259,17 @@ export default function BookingDetailsScreen() {
           </View>
         </View>
 
-        {/* Action Description */}
+      
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Notes</Text>
         <View style={[styles.notesCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Ionicons name="chatbox-ellipses-outline" size={18} color="#F59E0B" style={styles.notesIcon} />
           <View style={styles.notesTextSec}>
             <Text style={[styles.notesHeading, { color: textPrimary }]}>{booking.serviceType}</Text>
-            <Text style={[styles.notesBody, { color: textSecondary }]}>"{booking.notes}"</Text>
+            <Text style={[styles.notesBody, { color: textSecondary }]}>{`"${booking.notes}"`}</Text>
           </View>
         </View>
 
-        {/* Workflow State Modifiers */}
+  
         <View style={styles.actionBlock}>
           {booking.status === 'pending' ? (
             <View style={styles.carouselButtons}>
@@ -464,5 +531,163 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  telemetryHud: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#06B6D4',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  hudHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  hudPulseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pulseContainer: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(6, 182, 212, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  pulseOuter: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(6, 182, 212, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulseInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#06B6D4',
+  },
+  hudTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#06B6D4',
+    letterSpacing: 1,
+  },
+  hudBadge: {
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  hudBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#06B6D4',
+  },
+  hudContent: {
+    gap: 12,
+  },
+  telemetryStatsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  telemetryStatCell: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  telemetryStatLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    color: '#64748B',
+  },
+  telemetryStatValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  routeVisualizer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+  },
+  visualizerNodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  visualNode: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  visualNodeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    flex: 1,
+  },
+  visualConnectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    width: 60,
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
+  visualConnectorDashed: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#06B6D4',
+    opacity: 0.4,
+  },
+  visualConnectorVehicle: {
+    backgroundColor: '#1E2022',
+    padding: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#06B6D4',
+    zIndex: 2,
+  },
+  simulateNavBtn: {
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+    backgroundColor: 'rgba(6, 182, 212, 0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  simulateNavBtnText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#06B6D4',
+    letterSpacing: 0.8,
   },
 });

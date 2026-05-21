@@ -9,13 +9,14 @@ export default function MechanicLayout() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="dashboard" />
-      <Stack.Screen name="bookings" />
+      <Stack.Screen name="dashboard" options={{ animation: 'none' }} />
+      <Stack.Screen name="bookings" options={{ animation: 'none' }} />
       <Stack.Screen name="booking-details" />
-      <Stack.Screen name="earnings" />
-      <Stack.Screen name="profile" />
+      <Stack.Screen name="earnings" options={{ animation: 'none' }} />
+      <Stack.Screen name="profile" options={{ animation: 'none' }} />
       <Stack.Screen name="reviews" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="customer-preview" />
     </Stack>
   );
 }

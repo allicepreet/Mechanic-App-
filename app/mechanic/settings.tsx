@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Switch, TouchableOpacity, Alert } from 'react-native';
 import { useMechanic } from '@/components/MechanicContext';
 import Header from '@/components/Header';
+import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -28,7 +29,7 @@ export default function SettingsScreen() {
     },
     {
       q: 'When do financial payouts get disbursed?',
-      a: 'Standard disbursements are processed automatically every Monday at 12:00 AM UTC. You can also request an instant transfer anytime from the "Earnings" ledger by tapping "Request Instant Payout".',
+      a: 'Standard disbursements are processed automatically every Monday at 12:00 AM UTC directly to your connected business bank account.',
     },
     {
       q: 'Can I append custom services to a vehicle?',
@@ -103,6 +104,24 @@ export default function SettingsScreen() {
               thumbColor={soundEnabled ? '#FFFFFF' : '#f4f3f4'}
             />
           </View>
+
+          {/* Support Terminal Navigation */}
+          <TouchableOpacity 
+            style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: cardBorder }]}
+            activeOpacity={0.7}
+            onPress={() => router.push('/mechanic/help')}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(125, 160, 169, 0.15)' }]}>
+                <Ionicons name="headset" size={18} color="#7DA0A9" />
+              </View>
+              <View>
+                <Text style={[styles.settingTitleText, { color: textPrimary }]}>Operator Support Terminal</Text>
+                <Text style={[styles.settingSubText, { color: textSecondary }]}>Direct dispatch hotlines & diagnostic FAQs</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={textSecondary} style={{ marginRight: 4 }} />
+          </TouchableOpacity>
         </View>
 
         {/* FAQs accordion section */}

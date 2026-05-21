@@ -32,7 +32,6 @@ export default function SignupScreen() {
       return;
     }
 
-    // Call the context signup callback, which dynamically updates the owner name, garage name, phone, etc.
     signup(name, email, shopName, phone);
 
     Alert.alert('Garage Registered!', `Welcome to the Apex Network, ${name}. Your garage "${shopName}" is now active.`, [

@@ -14,15 +14,15 @@ export default function StatusButton({ status, onPress }: StatusButtonProps) {
       case 'accepted':
         return {
           bg: '#06B6D4',
-          text: 'Start Diagnostic & Service',
-          icon: 'wrench',
+          text: 'Start Dispatch Navigation',
+          icon: 'navigation',
           enabled: true,
         };
       case 'in_progress':
         return {
           bg: '#10B981',
-          text: 'Complete Service Operations',
-          icon: 'checkbox-marked-circle-outline',
+          text: 'Arrive & Complete Service',
+          icon: 'check-all',
           enabled: true,
         };
       case 'completed':

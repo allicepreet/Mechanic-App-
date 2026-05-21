@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import React, { useState, ComponentProps } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Image, Alert, Modal, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Header from '@/components/Header';
@@ -7,8 +7,80 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const GARAGE_DOCUMENTS: {
+  readonly id: string;
+  readonly title: string;
+  readonly category: string;
+  readonly authority: string;
+  readonly status: string;
+  readonly icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  readonly color: string;
+  readonly number: string;
+  readonly issued: string;
+  readonly expires: string;
+  readonly desc: string;
+  readonly fileSize: string;
+}[] = [
+  {
+    id: 'doc1',
+    title: 'ASE Master Technician Certification',
+    category: 'Technical Credential',
+    authority: 'National Automotive Service Excellence',
+    status: 'Verified',
+    icon: 'certificate',
+    color: '#3B82F6',
+    number: 'ASE-8890-TX',
+    issued: 'Dec 2023',
+    expires: 'Dec 2028',
+    desc: 'Gold-standard credential certifying advanced mastery across critical automotive domains, including computerized engine diagnostics, advanced electrical engineering, and hybrid drive systems.',
+    fileSize: '2.4 MB'
+  },
+  {
+    id: 'doc2',
+    title: 'EV & Hybrid Diagnostics Qualification',
+    category: 'Specialized Tech',
+    authority: 'Tesla Advanced Tech Academy',
+    status: 'Verified',
+    icon: 'flash',
+    color: '#10B981',
+    number: 'EV-8842-CA',
+    issued: 'Aug 2024',
+    expires: 'Aug 2029',
+    desc: 'Certified high-voltage operations including complete battery pack diagnostics, thermal management system calibrating, active motor winding analysis, and safety grounding operations.',
+    fileSize: '1.8 MB'
+  },
+  {
+    id: 'doc3',
+    title: 'State Garage Business License',
+    category: 'Regulatory Permit',
+    authority: 'California Bureau of Automotive Repair',
+    status: 'Verified',
+    icon: 'shield',
+    color: '#F59E0B',
+    number: 'BAR-LIC-99320',
+    issued: 'Mar 2024',
+    expires: 'Mar 2027',
+    desc: 'Official active operational garage business license authorizing standard and high-performance repair services, emissions compliance testing, and commercial fleet support.',
+    fileSize: '1.2 MB'
+  },
+  {
+    id: 'doc4',
+    title: 'Commercial General Liability Policy',
+    category: 'Insurance Coverage',
+    authority: 'Liberty Mutual Commercial',
+    status: 'Verified',
+    icon: 'shield-check',
+    color: '#8B5CF6',
+    number: 'LMC-POL-55099',
+    issued: 'Nov 2025',
+    expires: 'Nov 2026',
+    desc: '$2,000,000 comprehensive commercial general liability coverage covering garage operations, on-road test driving liability, and workshop customer protection policies.',
+    fileSize: '3.1 MB'
+  }
+];
+
 export default function ProfileScreen() {
-  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, logout } = useMechanic();
+  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, logout, isOnline } = useMechanic();
   const insets = useSafeAreaInsets();
 
   const [editMode, setEditMode] = useState(false);
@@ -17,6 +89,9 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState(garageInfo.phone);
   const [address, setAddress] = useState(garageInfo.address);
   const [hours, setHours] = useState(garageInfo.workingHours);
+
+  const [selectedDoc, setSelectedDoc] = useState<typeof GARAGE_DOCUMENTS[number] | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const activeBg = darkMode ? '#151718' : '#F8FAFC';
   const cardBg = darkMode ? '#1E2022' : '#FFFFFF';
@@ -74,7 +149,12 @@ export default function ProfileScreen() {
               source={require('@/assets/images/profile.png')}
               style={styles.avatarImage}
             />
-            <View style={styles.onlineActiveDot} />
+            <View
+              style={[
+                styles.onlineActiveDot,
+                { backgroundColor: isOnline ? '#10B981' : '#64748B' },
+              ]}
+            />
           </View>
         </View>
 
@@ -82,6 +162,21 @@ export default function ProfileScreen() {
         <View style={styles.brandContainer}>
           <Text style={[styles.ownerNameText, { color: textPrimary }]}>{garageInfo.ownerName}</Text>
           <Text style={[styles.garageNameText, { color: textSecondary }]}>{garageInfo.name}</Text>
+          
+          <View
+            style={[
+              styles.profileStatusTag,
+              {
+                backgroundColor: isOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.12)',
+                borderColor: isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.2)',
+              },
+            ]}
+          >
+            <View style={[styles.profileStatusDot, { backgroundColor: isOnline ? '#10B981' : '#64748B' }]} />
+            <Text style={[styles.profileStatusText, { color: isOnline ? '#10B981' : textSecondary }]}>
+              {isOnline ? 'Online • Accepting Bookings' : 'Offline • Shop Closed'}
+            </Text>
+          </View>
         </View>
 
         {/* Counter Badge Rows */}
@@ -212,6 +307,49 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {/* Verified Shop Credentials & Licenses */}
+        <View style={styles.credentialsSectionHeader}>
+          <Text style={[styles.sectionTitle, { color: textPrimary, marginLeft: 6 }]}>
+            Verified Shop Credentials
+          </Text>
+          <View style={styles.verifiedCountBadge}>
+            <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+            <Text style={styles.verifiedCountText}>4 Active</Text>
+          </View>
+        </View>
+
+        <View style={styles.docsContainer}>
+          {GARAGE_DOCUMENTS.map((doc) => (
+            <TouchableOpacity
+              key={doc.id}
+              style={[styles.docItemRow, { backgroundColor: cardBg, borderColor: cardBorder }]}
+              onPress={() => setSelectedDoc(doc)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.docIconContainer, { backgroundColor: `${doc.color}15` }]}>
+                <MaterialCommunityIcons name={doc.icon} size={20} color={doc.color} />
+              </View>
+              
+              <View style={styles.docInfoContainer}>
+                <Text style={[styles.docTitleText, { color: textPrimary }]} numberOfLines={1}>
+                  {doc.title}
+                </Text>
+                <Text style={[styles.docCategoryText, { color: textSecondary }]}>
+                  {doc.category}
+                </Text>
+              </View>
+              
+              <View style={styles.docRightCell}>
+                <View style={styles.miniVerifiedPill}>
+                  <Ionicons name="shield" size={10} color="#10B981" />
+                  <Text style={styles.miniVerifiedText}>Verified</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={14} color={textSecondary} />
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Secondary Navigation Links */}
         <View style={styles.linksBlock}>
           <TouchableOpacity
@@ -232,6 +370,17 @@ export default function ProfileScreen() {
             <View style={styles.linkLeft}>
               <Ionicons name="settings-outline" size={18} color="#3B82F6" />
               <Text style={[styles.linkText, { color: textPrimary }]}>App Configurations</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.linkRow, { backgroundColor: cardBg, borderColor: cardBorder }]}
+            onPress={() => router.push('/mechanic/help')}
+          >
+            <View style={styles.linkLeft}>
+              <Ionicons name="headset-outline" size={18} color="#10B981" />
+              <Text style={[styles.linkText, { color: textPrimary }]}>Technical Support Hub</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={textSecondary} />
           </TouchableOpacity>
@@ -277,6 +426,107 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Premium Document Details Drawer Modal */}
+      <Modal
+        visible={selectedDoc !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedDoc(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            {/* Modal Drag Indicator/Handle */}
+            <View style={[styles.modalHandle, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' }]} />
+
+            {selectedDoc && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+                {/* Header: Circle Icon & Verification Status */}
+                <View style={styles.modalHeader}>
+                  <View style={[styles.modalIconBg, { backgroundColor: `${selectedDoc.color}15` }]}>
+                    <MaterialCommunityIcons name={selectedDoc.icon} size={36} color={selectedDoc.color} />
+                  </View>
+                  
+                  <View style={styles.modalVerificationStatus}>
+                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                    <Text style={styles.modalVerificationText}>TRUSTED APEX CREDENTIAL</Text>
+                  </View>
+                  
+                  <Text style={[styles.modalTitle, { color: textPrimary }]}>{selectedDoc.title}</Text>
+                  <Text style={[styles.modalSubtitle, { color: textSecondary }]}>{selectedDoc.authority}</Text>
+                </View>
+
+                {/* Grid of Key-Value Metadata */}
+                <View style={[styles.metaGrid, { borderColor: cardBorder }]}>
+                  <View style={styles.metaGridCell}>
+                    <Text style={[styles.metaLabel, { color: textSecondary }]}>REGISTRATION NO.</Text>
+                    <Text style={[styles.metaValue, { color: textPrimary }]}>{selectedDoc.number}</Text>
+                  </View>
+                  <View style={styles.metaGridCell}>
+                    <Text style={[styles.metaLabel, { color: textSecondary }]}>DOCUMENT TYPE</Text>
+                    <Text style={[styles.metaValue, { color: textPrimary }]}>{selectedDoc.category}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.metaGrid, { borderTopWidth: 0, borderColor: cardBorder }]}>
+                  <View style={styles.metaGridCell}>
+                    <Text style={[styles.metaLabel, { color: textSecondary }]}>ISSUED DATE</Text>
+                    <Text style={[styles.metaValue, { color: textPrimary }]}>{selectedDoc.issued}</Text>
+                  </View>
+                  <View style={styles.metaGridCell}>
+                    <Text style={[styles.metaLabel, { color: textSecondary }]}>EXPIRY DATE</Text>
+                    <Text style={[styles.metaValue, { color: textPrimary }]}>{selectedDoc.expires}</Text>
+                  </View>
+                </View>
+
+                {/* Description Body */}
+                <View style={styles.descriptionSection}>
+                  <Text style={[styles.descriptionTitle, { color: textPrimary }]}>Credential Scope & Details</Text>
+                  <Text style={[styles.descriptionBodyText, { color: textSecondary }]}>
+                    {selectedDoc.desc}
+                  </Text>
+                </View>
+
+                {/* Simulated Action: Download/Print Certificate */}
+                <TouchableOpacity
+                  style={[styles.downloadButton, { backgroundColor: primaryAccent }]}
+                  onPress={() => {
+                    setIsDownloading(true);
+                    setTimeout(() => {
+                      setIsDownloading(false);
+                      Alert.alert(
+                        'Secure Download Complete',
+                        `Successfully fetched cryptographic copy of "${selectedDoc.title}" to local secure storage. (${selectedDoc.fileSize})`,
+                        [{ text: 'Great' }]
+                      );
+                    }, 1200);
+                  }}
+                  disabled={isDownloading}
+                >
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-download-outline" size={16} color="#FFFFFF" />
+                      <Text style={styles.downloadButtonText}>
+                        Download Secure PDF ({selectedDoc.fileSize})
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Close Button */}
+                <TouchableOpacity
+                  style={[styles.closeButton, { borderColor: cardBorder }]}
+                  onPress={() => setSelectedDoc(null)}
+                >
+                  <Text style={[styles.closeButtonText, { color: textPrimary }]}>Close Window</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -545,5 +795,218 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
+  },
+  profileStatusTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  profileStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  profileStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  credentialsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 12,
+  },
+  verifiedCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 4,
+  },
+  verifiedCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  docsContainer: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  docItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+  },
+  docIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  docInfoContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  docTitleText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  docCategoryText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  docRightCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    gap: 3,
+  },
+  miniVerifiedText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    minHeight: '65%',
+    maxHeight: '85%',
+    padding: 24,
+  },
+  modalHandle: {
+    width: 42,
+    height: 6,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalScrollContent: {
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 8,
+  },
+  modalIconBg: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalVerificationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  modalVerificationText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#10B981',
+    letterSpacing: 0.5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  metaGrid: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    paddingVertical: 14,
+  },
+  metaGridCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  metaValue: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  descriptionSection: {
+    marginVertical: 20,
+    gap: 8,
+  },
+  descriptionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  descriptionBodyText: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  downloadButton: {
+    height: 48,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  downloadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  closeButton: {
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

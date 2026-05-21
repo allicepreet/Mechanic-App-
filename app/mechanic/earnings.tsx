@@ -30,12 +30,25 @@ export default function EarningsScreen() {
   // Extract completed bookings as history list
   const completedJobs = bookings.filter((b) => b.status === 'completed');
 
-  const handleRequestPayout = () => {
-    Alert.alert(
-      'Instant Payout requested',
-      `Simulating payout of Rs. ${dailyEarnings.toFixed(0)} to your connected Business Account (Apex Shop Account •••• 9840). Funds will arrive shortly!`
-    );
-  };
+  const [selectedDay, setSelectedDay] = React.useState<number>(4); // Default to Friday
+  const weeklyData = [
+    { day: 'Mon', amount: 340, jobs: 1, date: 'May 18' },
+    { day: 'Tue', amount: 550, jobs: 2, date: 'May 19' },
+    { day: 'Wed', amount: 0, jobs: 0, date: 'May 20' },
+    { day: 'Thu', amount: 720, jobs: 2, date: 'May 21' },
+    { day: 'Fri', amount: 1100, jobs: 3, date: 'May 22' },
+    { day: 'Sat', amount: 890, jobs: 2, date: 'May 23' },
+    { day: 'Sun', amount: 450, jobs: 1, date: 'May 24' },
+  ];
+  const maxWeeklyAmount = 1200;
+
+  const serviceMix = [
+    { name: 'Electrical & EV', share: '45%', color: '#06B6D4', count: 9 },
+    { name: 'Brake & Suspension', share: '35%', color: '#F59E0B', count: 7 },
+    { name: 'Engine Tuning', share: '20%', color: '#10B981', count: 4 },
+  ];
+
+
 
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
@@ -55,6 +68,119 @@ export default function EarningsScreen() {
           darkMode={darkMode}
         />
 
+        {/* Analytics Center */}
+        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Performance Analytics</Text>
+        <View style={[styles.analyticsCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <View style={styles.analyticsHeader}>
+            <MaterialCommunityIcons name="chart-bar" size={20} color={primaryAccent} />
+            <Text style={[styles.analyticsTitle, { color: textPrimary }]}>Weekly Telemetry & Revenue</Text>
+          </View>
+          
+          <Text style={[styles.analyticsDesc, { color: textSecondary }]}>
+            Tap on any bar column below to inspect detailed daily telemetry, earnings, and completed repair sessions.
+          </Text>
+
+          {/* Graphical Bar Chart */}
+          <View style={styles.chartContainer}>
+            {weeklyData.map((item, idx) => {
+              const isSelected = selectedDay === idx;
+              const heightPercent = `${(item.amount / maxWeeklyAmount) * 100}%`;
+              return (
+                <View key={idx} style={styles.chartColumn}>
+                  <View style={styles.barWrapper}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setSelectedDay(idx)}
+                      style={[
+                        styles.barTrack,
+                        {
+                          backgroundColor: isSelected 
+                            ? 'rgba(6, 182, 212, 0.08)' 
+                            : 'rgba(255, 255, 255, 0.03)',
+                          borderColor: isSelected 
+                            ? 'rgba(6, 182, 212, 0.2)' 
+                            : 'transparent'
+                        }
+                      ]}
+                    >
+                      <View 
+                        style={[
+                          styles.barFill, 
+                          { 
+                            height: heightPercent as any, 
+                            backgroundColor: isSelected ? '#06B6D4' : primaryAccent 
+                          }
+                        ]} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.chartDayLabel, { color: isSelected ? '#06B6D4' : textSecondary }]}>
+                    {item.day}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Interactive Day Inspection Box */}
+          <View style={[styles.chartDetailBox, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)', borderColor: cardBorder }]}>
+            <View style={styles.chartDetailRow}>
+              <Text style={[styles.chartDetailLabel, { color: textSecondary }]}>DATE: {weeklyData[selectedDay].date}</Text>
+              <Text style={[styles.chartDetailValue, { color: textPrimary }]}>{weeklyData[selectedDay].day}</Text>
+            </View>
+            <View style={[styles.chartDetailDivider, { backgroundColor: cardBorder }]} />
+            <View style={styles.chartDetailRow}>
+              <View>
+                <Text style={[styles.chartDetailAmt, { color: '#10B981' }]}>Rs. {weeklyData[selectedDay].amount}</Text>
+                <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Daily Revenue</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[styles.chartDetailJobs, { color: textPrimary }]}>{weeklyData[selectedDay].jobs} Jobs</Text>
+                <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Repair Sessions</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Service Proportions Breakdown */}
+          <View style={[styles.chartDetailDivider, { backgroundColor: cardBorder, marginVertical: 16 }]} />
+          
+          <View style={styles.analyticsHeader}>
+            <MaterialCommunityIcons name="chart-pie" size={18} color={primaryAccent} />
+            <Text style={[styles.analyticsTitle, { color: textPrimary }]}>Service Category Proportions</Text>
+          </View>
+          
+          <View style={styles.proportionContainer}>
+            {serviceMix.map((mix, idx) => (
+              <View 
+                key={idx} 
+                style={[
+                  styles.proportionSegment, 
+                  { 
+                    width: mix.share as any, 
+                    backgroundColor: mix.color,
+                    borderTopLeftRadius: idx === 0 ? 6 : 0,
+                    borderBottomLeftRadius: idx === 0 ? 6 : 0,
+                    borderTopRightRadius: idx === serviceMix.length - 1 ? 6 : 0,
+                    borderBottomRightRadius: idx === serviceMix.length - 1 ? 6 : 0,
+                  }
+                ]} 
+              />
+            ))}
+          </View>
+
+          <View style={styles.legendGrid}>
+            {serviceMix.map((mix, idx) => (
+              <View key={idx} style={styles.legendItem}>
+                <View style={[styles.legendIndicator, { backgroundColor: mix.color }]} />
+                <View>
+                  <Text style={[styles.legendText, { color: textPrimary }]}>{mix.name}</Text>
+                  <Text style={[styles.legendSubtext, { color: textSecondary }]}>{mix.share} ({mix.count} sessions)</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Bank & Payout Controller Panel */}
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Payout Details</Text>
         <View style={[styles.payoutCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -69,34 +195,12 @@ export default function EarningsScreen() {
             </View>
           </View>
 
-          <View style={[styles.paymentDateRow, { borderTopColor: cardBorder }]}>
+          <View style={[styles.paymentDateRow, { borderTopColor: cardBorder, marginBottom: 0 }]}>
             <Ionicons name="calendar-outline" size={16} color={textSecondary} />
             <Text style={[styles.paymentDateText, { color: textSecondary }]}>
               Next Automated Payout: <Text style={{ color: textPrimary, fontWeight: '700' }}>May 25, 2026</Text>
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.payoutBtn,
-              {
-                backgroundColor: dailyEarnings > 0 ? '#10B981' : 'rgba(255, 255, 255, 0.05)',
-                borderColor: dailyEarnings > 0 ? 'transparent' : cardBorder,
-                borderWidth: dailyEarnings > 0 ? 0 : 1,
-              },
-            ]}
-            disabled={dailyEarnings === 0}
-            onPress={handleRequestPayout}
-          >
-            <Text
-              style={[
-                styles.payoutBtnText,
-                { color: dailyEarnings > 0 ? '#FFFFFF' : textSecondary },
-              ]}
-            >
-              {dailyEarnings > 0 ? 'Request Instant Payout' : 'No Recent Payout Balance'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Transaction History Ledger */}
@@ -361,5 +465,142 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
+  },
+  analyticsCard: {
+    marginHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  analyticsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  analyticsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginLeft: 8,
+    letterSpacing: 0.5,
+  },
+  analyticsDesc: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
+  chartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 160,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  chartColumn: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  barWrapper: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  barTrack: {
+    width: 14,
+    height: '100%',
+    justifyContent: 'flex-end',
+    borderRadius: 7,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: 6,
+  },
+  chartDayLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  chartDetailBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 4,
+  },
+  chartDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  chartDetailLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  chartDetailValue: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  chartDetailDivider: {
+    height: 1,
+    marginVertical: 10,
+  },
+  chartDetailAmt: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  chartDetailSub: {
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  chartDetailJobs: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  proportionContainer: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginTop: 10,
+    marginBottom: 16,
+    width: '100%',
+  },
+  proportionSegment: {
+    height: '100%',
+  },
+  legendGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '48%',
+    marginBottom: 10,
+  },
+  legendIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+    marginTop: 3,
+  },
+  legendText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  legendSubtext: {
+    fontSize: 9,
+    fontWeight: '500',
+    marginTop: 1,
   },
 });

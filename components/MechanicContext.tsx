@@ -13,6 +13,8 @@ export interface Booking {
   time: string;
   notes: string;
   location: string;
+  distance?: string;
+  eta?: string;
 }
 
 export interface Review {
@@ -23,6 +25,15 @@ export interface Review {
   date: string;
   service: string;
 }
+
+export const getVehicleImage = (vehicleName: string): any => {
+  const name = vehicleName.toLowerCase();
+  if (name.includes('tesla')) return require('@/assets/images/tesla.png');
+  if (name.includes('audi') || name.includes('e-tron')) return require('@/assets/images/audi.png');
+  if (name.includes('porsche') || name.includes('911') || name.includes('taycan')) return require('@/assets/images/porsche.png');
+  if (name.includes('mustang') || name.includes('shelby') || name.includes('ford') || name.includes('corvette')) return require('@/assets/images/mustang.png');
+  return require('@/assets/images/banner.png');
+};
 
 export interface GarageInfo {
   name: string;
@@ -54,6 +65,9 @@ interface MechanicContextType {
   isLoggedIn: boolean;
   login: (email: string, password: string) => boolean;
   signup: (name: string, email: string, shopName: string, phone: string) => void;
+  isOnline: boolean;
+  setIsOnline: (online: boolean) => void;
+  addSimulatedBooking: (booking: Omit<Booking, 'id' | 'status' | 'date'>) => void;
 }
 
 const MechanicContext = createContext<MechanicContextType | undefined>(undefined);
@@ -70,7 +84,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '10:00 AM',
     notes: 'Please paint calipers in Performance Red. The brakes are squeaking slightly when cold.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '1248 Oakwood Ave (Mobile Dispatch)',
+    distance: '3.2 km',
+    eta: '8 mins',
   },
   {
     id: 'B003',
@@ -83,7 +99,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '11:15 AM',
     notes: 'Range dropping unexpectedly after last software update. Inspect cell modules.',
-    location: 'Mobile Dispatch (On-Site Repair)',
+    location: '884 Performance Way (Mobile Dispatch)',
+    distance: '1.8 km',
+    eta: '5 mins',
   },
   {
     id: 'B004',
@@ -96,7 +114,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '03:30 PM',
     notes: 'Alignment pulling slightly to the left at highway speeds.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '901 Lamar Blvd, Suite A (Mobile Dispatch)',
+    distance: '4.7 km',
+    eta: '12 mins',
   },
   {
     id: 'B006',
@@ -109,7 +129,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '01:00 PM',
     notes: 'Flush brakes with Castrol SRF racing fluid and check torque on center locks.',
-    location: '1024 Performance Way (In-Shop)',
+    location: 'Circuit of The Americas (Mobile Dispatch)',
+    distance: '12.4 km',
+    eta: '25 mins',
   },
   {
     id: 'B007',
@@ -122,7 +144,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '04:15 PM',
     notes: 'Install Capristo valved system and sync with factory home-link button.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '304 West Lynn St (Mobile Dispatch)',
+    distance: '5.1 km',
+    eta: '14 mins',
   },
   {
     id: 'B008',
@@ -135,7 +159,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '05:00 PM',
     notes: 'Upgrade to 2.7-inch griptec pulley and flash customized dyno tune.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '702 San Jacinto Blvd (Mobile Dispatch)',
+    distance: '6.3 km',
+    eta: '16 mins',
   },
   {
     id: 'B002',
@@ -148,7 +174,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Today',
     time: '11:30 AM',
     notes: 'Engine warning light came on yesterday. Cylinder 3 misfire suspected.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '5812 North Interstate 35 (Mobile Dispatch)',
+    distance: '8.4 km',
+    eta: '18 mins',
   },
   {
     id: 'B005',
@@ -161,7 +189,9 @@ const INITIAL_BOOKINGS: Booking[] = [
     date: 'Yesterday',
     time: '09:00 AM',
     notes: 'Customer requests Royal Purple 5W-50 full synthetic oil.',
-    location: '1024 Performance Way (In-Shop)',
+    location: '1024 Rio Grande St (Mobile Dispatch)',
+    distance: '2.5 km',
+    eta: '6 mins',
   },
 ];
 
@@ -170,26 +200,26 @@ const INITIAL_REVIEWS: Review[] = [
     id: 'R001',
     customerName: 'David Miller',
     rating: 5,
-    comment: 'Exceptional service! Used the Royal Purple synthetic oil as requested and finished in under 30 minutes. The workshop is pristine.',
+    comment: 'Exceptional service! Arrived in under 30 minutes in his mobile tuning van. Checked EV battery health and calibrated system perfectly right in my driveway.',
     date: 'Yesterday',
-    service: 'Oil Change & Filter Replacement',
+    service: 'EV Battery Telemetry Calibration',
   },
   {
     id: 'R002',
     customerName: 'Emily Watson',
     rating: 5,
-    comment: 'Super professional team. My Defender drives perfectly after the lift kit calibration. Highly recommend Apex!',
+    comment: 'Super professional mobile specialist. My Audi drives perfectly after the stage 2 tune. Came straight to my office park. Highly recommend Dominic!',
     date: 'Yesterday',
-    service: 'Off-Road Lift Kit Calibration & Alignment',
+    service: 'ECU Stage 2 Performance Tune',
   },
 ];
 
 const INITIAL_GARAGE: GarageInfo = {
-  name: 'Apex Auto Works',
-  ownerName: 'Dominic T.',
+  name: 'Dominic T.',
+  ownerName: 'Independent Mobile Specialist',
   phone: '+1 (555) 999-8800',
-  address: '1024 Performance Way, Suite C',
-  workingHours: 'Mon - Sat: 8:00 AM - 6:00 PM',
+  address: 'Austin Service Zone & Mobile Dispatch Hub',
+  workingHours: 'Active Shifts: 8:00 AM - 8:00 PM',
   specialties: ['Performance Tuning', 'Diagnostics', 'Brake Systems', 'High-End Alignment', 'EV Drivetrains'],
 };
 
@@ -201,6 +231,7 @@ export const MechanicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   const login = (email: string, password: string) => {
     setIsLoggedIn(true);
@@ -270,6 +301,21 @@ export const MechanicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setBookings(INITIAL_BOOKINGS);
   };
 
+  const addSimulatedBooking = (bookingData: Omit<Booking, 'id' | 'status' | 'date'>) => {
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const randomDist = (1.5 + Math.random() * 6.5).toFixed(1);
+    const randomEta = Math.floor(6 + Math.random() * 16);
+    const newBooking: Booking = {
+      ...bookingData,
+      id: `B${randomSuffix}`,
+      status: 'pending',
+      date: 'Today',
+      distance: `${randomDist} km`,
+      eta: `${randomEta} mins`,
+    };
+    setBookings((prev) => [newBooking, ...prev]);
+  };
+
   return (
     <MechanicContext.Provider
       value={{
@@ -293,6 +339,9 @@ export const MechanicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isLoggedIn,
         login,
         signup,
+        isOnline,
+        setIsOnline,
+        addSimulatedBooking,
       }}
     >
       {children}

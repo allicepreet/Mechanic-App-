@@ -14,7 +14,7 @@ export default function ReviewsScreen() {
   const textSecondary = darkMode ? '#9BA1A6' : '#64748B';
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
 
-  // Mock distribution percentages
+  
   const distribution = [
     { stars: 5, percent: 85 },
     { stars: 4, percent: 12 },
@@ -86,15 +86,15 @@ export default function ReviewsScreen() {
               </View>
             </View>
 
-            {/* Service rendered subtitle */}
+           
             <View style={[styles.serviceRow, { borderBottomColor: cardBorder }]}>
               <MaterialCommunityIcons name="wrench-outline" size={13} color="#F59E0B" />
               <Text style={[styles.serviceText, { color: textSecondary }]}>Service: {rev.service}</Text>
             </View>
 
-            {/* Review feedback text */}
+          
             <Text style={[styles.commentText, { color: textPrimary }]}>
-              "{rev.comment}"
+              {`"${rev.comment}"`}
             </Text>
           </View>
         ))}
