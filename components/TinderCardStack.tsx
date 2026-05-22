@@ -12,7 +12,7 @@ interface TinderCardStackProps {
   bookings: Booking[];
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
-  onSwipeStart: (id: string) => void;
+  onSwipeStart?: (id: string) => void;
   darkMode?: boolean;
 }
 
@@ -73,7 +73,7 @@ export default function TinderCardStack({
     const item = activeBookingsRef.current[0];
     
     // Instantly notify parent to update header count and trigger any layout syncing
-    propsRef.current.onSwipeStart(item.id);
+    propsRef.current.onSwipeStart?.(item.id);
 
     const x = direction === 'right' ? SCREEN_WIDTH + 100 : -SCREEN_WIDTH - 100;
     Animated.timing(position, {
@@ -133,6 +133,61 @@ export default function TinderCardStack({
       );
     }
 
+    const renderTelemetryHUD = (item: Booking) => (
+      <View style={[styles.telemetryHUD, { backgroundColor: darkMode ? '#0F172A' : '#F8FAFC', borderColor: cardBorder }]}>
+        {/* Header with ticket and blinking heartbeat */}
+        <View style={styles.hudTopRow}>
+          <View style={styles.hudPulseRow}>
+            <View style={styles.pulseContainer}>
+              <View style={styles.pulseOuter}>
+                <View style={styles.pulseInner} />
+              </View>
+            </View>
+            <Text style={[styles.hudLabel, { color: darkMode ? '#94A3B8' : '#64748B' }]}>GPS TELEMETRY ACTIVE</Text>
+          </View>
+          <View style={styles.ticketBadge}>
+            <Text style={styles.ticketBadgeText}>DISPATCH {item.id}</Text>
+          </View>
+        </View>
+
+        {/* Dynamic Route Node Mapping */}
+        <View style={styles.hudRouteContainer}>
+          <View style={styles.hudRouteNode}>
+            <Ionicons name="business" size={13} color={primaryAccent} />
+            <Text style={[styles.hudRouteNodeText, { color: textPrimary }]} numberOfLines={1}>Dispatch Hub</Text>
+          </View>
+          
+          <View style={styles.hudRouteLineContainer}>
+            <View style={[styles.hudRouteLine, { borderColor: cardBorder }]} />
+            <View style={[styles.hudRouteLineVehicle, { backgroundColor: cardBg, borderColor: primaryAccent }]}>
+              <MaterialCommunityIcons name="truck-delivery" size={12} color={primaryAccent} />
+            </View>
+          </View>
+
+          <View style={styles.hudRouteNode}>
+            <Ionicons name="location-sharp" size={13} color="#EF4444" />
+            <Text style={[styles.hudRouteNodeText, { color: textPrimary }]} numberOfLines={1}>{item.location}</Text>
+          </View>
+        </View>
+
+        {/* Technical Readouts */}
+        <View style={styles.hudGrid}>
+          <View style={[styles.hudCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+            <Text style={styles.hudCellLabel}>OBD SYSTEM</Text>
+            <Text style={[styles.hudCellValue, { color: '#EF4444' }]}>ERR_SYS_MALF</Text>
+          </View>
+          <View style={[styles.hudCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+            <Text style={styles.hudCellLabel}>ETA METRIC</Text>
+            <Text style={[styles.hudCellValue, { color: '#06B6D4' }]}>{item.eta || 'N/A'}</Text>
+          </View>
+          <View style={styles.hudCell}>
+            <Text style={styles.hudCellLabel}>RANGE COORD</Text>
+            <Text style={[styles.hudCellValue, { color: textPrimary }]}>{item.distance || 'N/A'}</Text>
+          </View>
+        </View>
+      </View>
+    );
+
     return activeBookings
       .slice(0, 3) // Only render the top 3 cards in stack for maximum performance and gorgeous layered layout depth
       .map((item, idx) => {
@@ -155,11 +210,7 @@ export default function TinderCardStack({
                 },
               ]}
             >
-              <Image
-                source={getVehicleImage(item.vehicle)}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
+              {renderTelemetryHUD(item)}
               <View style={styles.cardHeader}>
                 <Text style={[styles.carName, { color: textPrimary }]}>{item.vehicle}</Text>
                 <Text style={styles.price}>Rs. {item.price}</Text>
@@ -191,12 +242,8 @@ export default function TinderCardStack({
               <Text style={styles.declineStampText}>DECLINE</Text>
             </Animated.View>
 
-            {/* Gorgeous Vehicle Image Cover */}
-            <Image
-              source={getVehicleImage(item.vehicle)}
-              style={styles.cardImage}
-              resizeMode="cover"
-            />
+            {/* Highly Functional Telemetry HUD Cover */}
+            {renderTelemetryHUD(item)}
 
             {/* Card Content Header */}
             <View style={styles.cardHeader}>
@@ -225,28 +272,6 @@ export default function TinderCardStack({
                   {`"${item.notes}"`}
                 </Text>
               ) : null}
-            </View>
-
-            {/* Stranded breakdown location, distance, and ETA */}
-            <View style={styles.routeContainer}>
-              <View style={styles.locationRow}>
-                <Ionicons name="location-sharp" size={14} color="#EF4444" />
-                <Text style={[styles.locationText, { color: textPrimary }]} numberOfLines={1}>
-                  {item.location}
-                </Text>
-              </View>
-              {item.distance && (
-                <View style={styles.distanceRow}>
-                  <View style={[styles.badge, { backgroundColor: darkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)' }]}>
-                    <Ionicons name="speedometer-outline" size={11} color="#F59E0B" />
-                    <Text style={[styles.badgeText, { color: '#F59E0B' }]}>{item.distance} away</Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: darkMode ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.08)' }]}>
-                    <Ionicons name="time-outline" size={11} color="#06B6D4" />
-                    <Text style={[styles.badgeText, { color: '#06B6D4' }]}>{item.eta} ETA</Text>
-                  </View>
-                </View>
-              )}
             </View>
 
             {/* Location & Time Footer info */}
@@ -521,6 +546,123 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  telemetryHUD: {
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    height: 140,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  hudTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  hudPulseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pulseContainer: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  pulseOuter: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulseInner: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#10B981',
+  },
+  hudLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  ticketBadge: {
+    backgroundColor: 'rgba(125, 160, 169, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ticketBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#7DA0A9',
+  },
+  hudRouteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 4,
+  },
+  hudRouteNode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  hudRouteNodeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    flex: 1,
+  },
+  hudRouteLineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    width: 40,
+    marginHorizontal: 4,
+  },
+  hudRouteLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    borderStyle: 'dashed',
+    borderWidth: 0.5,
+  },
+  hudRouteLineVehicle: {
+    padding: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    zIndex: 2,
+  },
+  hudGrid: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    paddingTop: 8,
+  },
+  hudCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hudCellLabel: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  hudCellValue: {
     fontSize: 10,
     fontWeight: '800',
   },

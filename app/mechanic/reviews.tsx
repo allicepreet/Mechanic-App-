@@ -45,7 +45,7 @@ export default function ReviewsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Rating Metrics & Star Distribution Widget */}
+        
         <View style={[styles.summaryCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.metricsHeader}>
             <View style={styles.scoreContainer}>
@@ -71,7 +71,7 @@ export default function ReviewsScreen() {
           </View>
         </View>
 
-        {/* Verified Reviews Feed */}
+       
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Customer Reviews ({reviews.length})</Text>
         {reviews.map((rev) => (
           <View key={rev.id} style={[styles.reviewCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>

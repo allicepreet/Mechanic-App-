@@ -1,6 +1,6 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Linking, Alert } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import React from 'react';
+import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface CustomerCardProps {
   name: string;
@@ -24,7 +24,7 @@ export default function CustomerCard({
   const textSecondary = darkMode ? '#9BA1A6' : '#64748B';
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
 
-  // Generate short letters for Avatar
+
   const getInitials = (fullName: string) => {
     return fullName
       .split(' ')
@@ -85,7 +85,7 @@ export default function CustomerCard({
         </View>
       </View>
 
-      {/* Action buttons (Call, Message, and GPS Route) */}
+
       <View style={styles.actions}>
         <TouchableOpacity onPress={handleCall} style={[styles.actionBtn, styles.callBtn]}>
           <Ionicons name="call" size={14} color="#FFFFFF" style={styles.btnIcon} />
@@ -103,7 +103,7 @@ export default function CustomerCard({
         </TouchableOpacity>
       </View>
 
-      {/* Service location info */}
+
       <View style={[styles.locationContainer, { borderTopColor: cardBorder }]}>
         <Ionicons name="location" size={16} color="#EF4444" />
         <Text style={[styles.locationText, { color: textSecondary }]}>

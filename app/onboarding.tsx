@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Dimensions, Animated, Easing, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -13,7 +13,6 @@ const ONBOARDING_PAGES = [
     id: 1,
     title: 'Advanced Diagnostics',
     subtitle: 'Real-time telemetry, full EV drivetrain analysis, and elite ECU tuning for modern performance vehicles.',
-    image: require('@/assets/images/tesla.png'),
     tag: 'INTELLIGENT TECH',
     icon: 'speedometer-outline',
   },
@@ -21,7 +20,6 @@ const ONBOARDING_PAGES = [
     id: 2,
     title: 'Precision Tuning',
     subtitle: 'Expert suspension calibration, aerodynamic setups, and track-day adjustments for ultimate cornering.',
-    image: require('@/assets/images/porsche.png'),
     tag: 'ELITE CALIBRATION',
     icon: 'options-outline',
   },
@@ -29,7 +27,6 @@ const ONBOARDING_PAGES = [
     id: 3,
     title: 'High Performance',
     subtitle: 'High-end exhaust systems, bespoke caliper paint, and premium synthetic oil upgrades for high-revving engines.',
-    image: require('@/assets/images/mustang.png'),
     tag: 'UNLEASHED POWER',
     icon: 'flame-outline',
   },
@@ -40,6 +37,41 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 8000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.4,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ]).start();
+  }, []);
+
+  const radarRotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const activeBg = darkMode ? '#0F172A' : '#F4F6F8';
   const textPrimary = darkMode ? '#F8FAFC' : '#1E293B';
@@ -64,6 +96,118 @@ export default function OnboardingScreen() {
       });
     } else {
       router.push('/login');
+    }
+  };
+
+  const renderTelemetryGraphics = (index: number) => {
+    const activeColor = primaryAccent;
+    const radarRotateStyle = {
+      transform: [{ rotate: radarRotation }],
+    };
+    const pulseStyle = {
+      opacity: pulseAnim,
+    };
+
+    if (index === 0) {
+      return (
+        <View style={styles.hudGraphicContainer}>
+          <View style={[styles.dialOuter, { borderColor: darkMode ? 'rgba(125,160,169,0.15)' : 'rgba(125,160,169,0.2)' }]}>
+            <View style={[styles.dialArc, { borderColor: activeColor }]} />
+            <View style={styles.dialInner}>
+              <Animated.View style={[styles.dialPulse, { backgroundColor: activeColor }, pulseStyle]} />
+              <Text style={[styles.dialValText, { color: textPrimary }]}>SYS_OK</Text>
+              <Text style={styles.dialLabelText}>OBD STATUS</Text>
+            </View>
+          </View>
+
+          <View style={styles.hudTelemetryRows}>
+            <View style={styles.hudTelemetryRow}>
+              <Text style={[styles.hudLabelText, { color: textSecondary }]}>ECU_SYS</Text>
+              <Text style={[styles.hudValText, { color: textPrimary }]}>ONLINE</Text>
+            </View>
+            <View style={styles.hudTelemetryRow}>
+              <Text style={[styles.hudLabelText, { color: textSecondary }]}>EV_TEMP</Text>
+              <Text style={[styles.hudValText, { color: textPrimary }]}>36.8°C</Text>
+            </View>
+            <View style={styles.hudTelemetryRow}>
+              <Text style={[styles.hudLabelText, { color: textSecondary }]}>BAT_BUS</Text>
+              <Text style={[styles.hudValText, { color: '#10B981' }]}>398V_NOM</Text>
+            </View>
+          </View>
+        </View>
+      );
+    } else if (index === 1) {
+      return (
+        <View style={styles.tuningGraphicContainer}>
+          <View style={styles.slidersBlock}>
+            <View style={styles.sliderGroup}>
+              <Text style={[styles.sliderLabel, { color: textSecondary }]}>FRONT DAMPING // 82%</Text>
+              <View style={styles.sliderTrack}>
+                <View style={[styles.sliderFill, { width: '82%', backgroundColor: activeColor }]} />
+                <View style={[styles.sliderKnob, { left: '82%', borderColor: activeColor }]} />
+              </View>
+            </View>
+            <View style={styles.sliderGroup}>
+              <Text style={[styles.sliderLabel, { color: textSecondary }]}>REAR DOWNFORCE // 64%</Text>
+              <View style={styles.sliderTrack}>
+                <View style={[styles.sliderFill, { width: '64%', backgroundColor: activeColor }]} />
+                <View style={[styles.sliderKnob, { left: '64%', borderColor: activeColor }]} />
+              </View>
+            </View>
+            <View style={styles.sliderGroup}>
+              <Text style={[styles.sliderLabel, { color: textSecondary }]}>STEERING RESPONSE // ELITE</Text>
+              <View style={styles.sliderTrack}>
+                <View style={[styles.sliderFill, { width: '90%', backgroundColor: activeColor }]} />
+                <View style={[styles.sliderKnob, { left: '90%', borderColor: activeColor }]} />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.eqBlock}>
+            {[30, 48, 65, 42, 58, 80, 50, 68, 35, 52].map((height, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.eqBar,
+                  {
+                    height: height * 0.5,
+                    backgroundColor: activeColor,
+                    opacity: 0.3 + (i % 3) * 0.25,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.radarGraphicContainer}>
+          <View style={[styles.radarCircleBig, { borderColor: darkMode ? 'rgba(125,160,169,0.15)' : 'rgba(125,160,169,0.2)' }]}>
+            <View style={[styles.radarCircleMid, { borderColor: darkMode ? 'rgba(125,160,169,0.1)' : 'rgba(125,160,169,0.15)' }]} />
+            <View style={[styles.radarCircleSmall, { borderColor: darkMode ? 'rgba(125,160,169,0.06)' : 'rgba(125,160,169,0.1)' }]} />
+            
+            <View style={[styles.radarAxisH, { backgroundColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} />
+            <View style={[styles.radarAxisV, { backgroundColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]} />
+
+            <Animated.View style={[styles.radarSweepContainer, radarRotateStyle]}>
+              <View style={[styles.radarSweepLine, { backgroundColor: activeColor }]} />
+            </Animated.View>
+
+            <Animated.View style={[styles.radarTargetNode, { top: '35%', left: '25%', borderColor: activeColor }, pulseStyle]} />
+            <Animated.View style={[styles.radarTargetNode, { bottom: '25%', right: '30%', borderColor: activeColor }, pulseStyle]} />
+          </View>
+
+          <View style={styles.radarTelemetry}>
+            <Text style={[styles.radarCoordinatesText, { color: textSecondary }]}>
+              COORD: 30.2672° N // 97.7431° W
+            </Text>
+            <Text style={[styles.radarCoordinatesText, { color: textSecondary }]}>
+              SAT STATUS: 12_LOCKED // HDG: 180°
+            </Text>
+          </View>
+        </View>
+      );
     }
   };
 
@@ -97,9 +241,9 @@ export default function OnboardingScreen() {
       >
         {ONBOARDING_PAGES.map((page, index) => (
           <View key={page.id} style={styles.slideContainer}>
-            {/* Visual car container with elegant glassmorphism framing */}
+            {/* Visual container with elegant glassmorphism framing */}
             <View style={[styles.imageContainer, { borderColor: cardBorder }]}>
-              <Image source={page.image} style={styles.carImage} resizeMode="contain" />
+              {renderTelemetryGraphics(index)}
               <View style={[styles.tagBadge, { backgroundColor: primaryAccent }]}>
                 <Ionicons name={page.icon as any} size={11} color="#FFFFFF" style={styles.tagIcon} />
                 <Text style={styles.tagText}>{page.tag}</Text>
@@ -210,9 +354,207 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(125, 160, 169, 0.03)',
   },
-  carImage: {
-    width: '95%',
-    height: '85%',
+  hudGraphicContainer: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 24,
+  },
+  dialOuter: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  dialArc: {
+    position: 'absolute',
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    borderWidth: 3,
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+    transform: [{ rotate: '45deg' }],
+  },
+  dialInner: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(125, 160, 169, 0.02)',
+  },
+  dialPulse: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  dialValText: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  dialLabelText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+    letterSpacing: 0.8,
+  },
+  hudTelemetryRows: {
+    flex: 1,
+    gap: 8,
+    justifyContent: 'center',
+  },
+  hudTelemetryRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148, 163, 184, 0.08)',
+    paddingBottom: 4,
+  },
+  hudLabelText: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  hudValText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tuningGraphicContainer: {
+    width: '100%',
+    height: '100%',
+    padding: 20,
+    justifyContent: 'space-between',
+  },
+  slidersBlock: {
+    gap: 12,
+    marginTop: 8,
+  },
+  sliderGroup: {
+    gap: 4,
+  },
+  sliderLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sliderTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
+    width: '100%',
+    position: 'relative',
+  },
+  sliderFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  sliderKnob: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+    top: -3,
+    marginLeft: -6,
+  },
+  eqBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    height: 48,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.08)',
+    paddingTop: 8,
+    marginBottom: 4,
+  },
+  eqBar: {
+    width: 14,
+    borderRadius: 2,
+  },
+  radarGraphicContainer: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  radarCircleBig: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  radarCircleMid: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+  },
+  radarCircleSmall: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1,
+  },
+  radarAxisH: {
+    position: 'absolute',
+    width: '100%',
+    height: 1,
+  },
+  radarAxisV: {
+    position: 'absolute',
+    height: '100%',
+    width: 1,
+  },
+  radarSweepContainer: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radarSweepLine: {
+    width: 70,
+    height: 1.5,
+    position: 'absolute',
+    left: 70,
+    top: 70,
+  },
+  radarTargetNode: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  radarTelemetry: {
+    marginTop: 12,
+    alignItems: 'center',
+    gap: 3,
+  },
+  radarCoordinatesText: {
+    fontSize: 8,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    letterSpacing: 0.5,
   },
   tagBadge: {
     position: 'absolute',

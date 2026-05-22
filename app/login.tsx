@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Dimensions, Animated, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, AlertButton } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,26 +26,37 @@ export default function LoginScreen() {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const contentFadeAnim = useRef(new Animated.Value(1)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   const neonGreen = '#00E676';
   const darkBg = '#0B0F19';
 
-  // Float animation for vehicle
+  // Float and Rotate animations for mainframe terminal
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: -12,
-          duration: 2200,
+    Animated.parallel([
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(floatAnim, {
+            toValue: -12,
+            duration: 2200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(floatAnim, {
+            toValue: 0,
+            duration: 2200,
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 12000,
+          easing: Easing.linear,
           useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2200,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+        })
+      )
+    ]).start();
   }, []);
 
   const handleOpenAuth = () => {
@@ -81,35 +92,85 @@ export default function LoginScreen() {
     });
   };
 
-  const handleLogin = (isDemo = false) => {
+  const showAlert = (title: string, message: string, buttons?: AlertButton[]) => {
+    console.log(`[ALERT DIALOG] ${title}: ${message}`);
+    if (Platform.OS === 'web') {
+      if (buttons && buttons.length > 1) {
+        const confirmResult = window.confirm(`${title}\n\n${message}`);
+        if (confirmResult) {
+          const primaryButton = buttons.find(b => b.style !== 'cancel') || buttons[0];
+          if (primaryButton && primaryButton.onPress) primaryButton.onPress();
+        } else {
+          const cancelButton = buttons.find(b => b.style === 'cancel');
+          if (cancelButton && cancelButton.onPress) cancelButton.onPress();
+        }
+      } else {
+        window.alert(`${title}\n\n${message}`);
+        if (buttons && buttons[0] && buttons[0].onPress) {
+          buttons[0].onPress();
+        }
+      }
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
+
+  const handleLogin = async (isDemo = false) => {
+    console.log('--- [FRONTEND CLICK] Login Button Pressed ---');
+    console.log('Inputs Captured:', { email, password: password ? 'PROVIDED' : 'BLANK', isDemo });
+
     if (!isDemo && (!email || !password)) {
-      Alert.alert('Details Missing', 'Please enter your email and security code.');
+      showAlert('Details Missing', 'Please enter your email and security code.');
       return;
     }
 
     if (isDemo) {
       setIsDemoLoading(true);
-    } else {
-      setIsLoading(true);
+      setTimeout(() => {
+        setIsDemoLoading(false);
+        router.replace('/mechanic/dashboard');
+      }, 800);
+      return;
     }
 
-    setTimeout(() => {
-      login(isDemo ? 'dominic@apex.com' : email, isDemo ? 'admin' : password);
-      setIsLoading(false);
-      setIsDemoLoading(false);
+    setIsLoading(true);
+
+    const result = await login(email, password);
+
+    setIsLoading(false);
+
+    if (result.success) {
       router.replace('/mechanic/dashboard');
-    }, 1200);
+    } else {
+      if (result.isOffline) {
+        showAlert(
+          'Security Server Offline',
+          'Could not connect to the API server. Would you like to enter in Simulated Demo Mode for previewing the app dashboard?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Enter Demo Mode', 
+              onPress: () => {
+                router.replace('/mechanic/dashboard');
+              } 
+            }
+          ]
+        );
+      } else {
+        showAlert('Access Denied', result.error || 'Failed to authenticate.');
+      }
+    }
   };
 
-  // Interpolations for vehicle shadow sizing
-  const shadowScale = floatAnim.interpolate({
-    inputRange: [-12, 0],
-    outputRange: [0.75, 1],
+  // Interpolations for meshing rotating cogs (opposite directions!)
+  const rotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
   });
-  
-  const shadowOpacity = floatAnim.interpolate({
-    inputRange: [-12, 0],
-    outputRange: [0.18, 0.35],
+
+  const rotationCounter = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['360deg', '0deg'],
   });
 
   const scriptFont = Platform.select({
@@ -131,25 +192,56 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {/* Floating Supercar and Shadow */}
+        {/* Floating Mainframe Gear / Wrench Mechanical Graphics */}
         <View style={styles.vehicleContainer}>
-          <Animated.Image
-            source={require('@/assets/images/porsche.png')}
+          <Animated.View
             style={[
-              styles.vehicleImage,
+              styles.mainframeNode,
               { transform: [{ translateY: floatAnim }] }
             ]}
-            resizeMode="contain"
-          />
-          <Animated.View 
-            style={[
-              styles.vehicleShadow,
-              { 
-                transform: [{ scaleX: shadowScale }, { scaleY: shadowScale }],
-                opacity: shadowOpacity
-              }
-            ]} 
-          />
+          >
+            {/* Outer large gear rotating clockwise */}
+            <Animated.View
+              style={[
+                styles.gearOuter,
+                { transform: [{ rotate: rotation }] }
+              ]}
+            >
+              <MaterialCommunityIcons name="cog-outline" size={210} color="rgba(0, 230, 118, 0.28)" />
+            </Animated.View>
+
+            {/* Inner secondary gear rotating counter-clockwise */}
+            <Animated.View
+              style={[
+                styles.gearInner,
+                { transform: [{ rotate: rotationCounter }] }
+              ]}
+            >
+              <MaterialCommunityIcons name="cog" size={150} color="rgba(6, 182, 212, 0.12)" />
+            </Animated.View>
+
+            {/* Glowing Wrench Core inside a solid metal shield ring */}
+            <View style={styles.innerRing}>
+              <MaterialCommunityIcons 
+                name="wrench" 
+                size={52} 
+                color={neonGreen} 
+                style={{
+                  textShadowColor: neonGreen,
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 8,
+                }} 
+              />
+            </View>
+
+            {/* Micro HUD status readouts floating on mechanics workspace */}
+            <View style={[styles.microHudBadge, { top: -22, left: -42 }]}>
+              <Text style={styles.microHudText}>DIAG.SYS // ACTIVE</Text>
+            </View>
+            <View style={[styles.microHudBadge, { bottom: -22, right: -42 }]}>
+              <Text style={[styles.microHudText, { color: '#06B6D4' }]}>RPM.TUNE // 7200</Text>
+            </View>
+          </Animated.View>
         </View>
 
         {/* Brand Typography Titles */}
@@ -167,6 +259,16 @@ export default function LoginScreen() {
       {/* Interactive Inverted Dome Tab & Chevron Entry Button */}
       {!showAuthPanel && (
         <View style={[styles.invertedDomeContainer, { bottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+          {/* Register Button */}
+          <TouchableOpacity
+            style={[styles.circleChevronBtn, { backgroundColor: 'rgba(0,230,118,0.12)', borderColor: 'rgba(0,230,118,0.4)', marginRight: 16 }]}
+            activeOpacity={0.85}
+            onPress={() => router.push('/register')}
+          >
+            <Ionicons name="person-add-outline" size={20} color={neonGreen} />
+          </TouchableOpacity>
+
+          {/* Login Button */}
           <TouchableOpacity 
             style={styles.circleChevronBtn}
             activeOpacity={0.85}
@@ -299,6 +401,14 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
+          {/* Register Link */}
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => router.replace('/register')}
+          >
+            <Text style={[styles.backBtnText, { color: '#00E676' }]}>Register New Terminal (Sign Up)</Text>
+          </TouchableOpacity>
+
           {/* Back Button */}
           <TouchableOpacity 
             style={styles.backBtn} 
@@ -338,19 +448,71 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT * 0.38,
     width: '100%',
   },
-  vehicleImage: {
-    width: SCREEN_WIDTH * 0.95,
-    height: SCREEN_HEIGHT * 0.28,
-    zIndex: 2,
+  mainframeNode: {
+    width: 220,
+    height: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  vehicleShadow: {
-    width: SCREEN_WIDTH * 0.7,
-    height: 14,
-    backgroundColor: '#000000',
-    borderRadius: 7,
+  outerRotateRing: {
     position: 'absolute',
-    bottom: 25,
-    zIndex: 1,
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 230, 118, 0.45)',
+    borderStyle: 'dashed',
+  },
+  midRing: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 230, 118, 0.15)',
+    backgroundColor: 'rgba(0, 230, 118, 0.02)',
+  },
+  innerRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 230, 118, 0.25)',
+    backgroundColor: 'rgba(11, 15, 25, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00E676',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  gearOuter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gearInner: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  microHudBadge: {
+    position: 'absolute',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  microHudText: {
+    color: '#00E676',
+    fontSize: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   titleBlock: {
     paddingHorizontal: 28,
@@ -389,13 +551,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     alignSelf: 'center',
-    width: 140,
-    height: 52,
+    width: 200,
+    height: 58,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 70,
-    borderTopRightRadius: 70,
+    borderTopLeftRadius: 100,
+    borderTopRightRadius: 100,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
   circleChevronBtn: {
     width: 36,

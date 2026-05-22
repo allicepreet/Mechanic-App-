@@ -1,13 +1,12 @@
-import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useMechanic, Booking, getVehicleImage } from '@/components/MechanicContext';
-import Header from '@/components/Header';
 import CustomerCard from '@/components/CustomerCard';
+import Header from '@/components/Header';
+import { Booking, useMechanic } from '@/components/MechanicContext';
 import StatusButton from '@/components/StatusButton';
-import SwipeButton from '@/components/SwipeButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { router, useLocalSearchParams } from 'expo-router';
+import React from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function BookingDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,7 +49,7 @@ export default function BookingDetailsScreen() {
 
   const activeIndex = getStepperActiveIndex(booking.status);
 
-  
+
   const steps = [
     { label: 'Requested', icon: 'file-text-outline' },
     { label: 'Accepted', icon: 'checkmark-circle-outline' },
@@ -66,98 +65,105 @@ export default function BookingDetailsScreen() {
     }
   };
 
-  const vehicleImg = getVehicleImage(booking.vehicle);
+  const vehicleIsEV = booking.vehicle.toLowerCase().includes('tesla') || booking.vehicle.toLowerCase().includes('etron');
 
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
       <Header title="Booking Details" showBack darkMode={darkMode} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
- 
-        <View style={[styles.heroImageContainer, { borderColor: cardBorder }]}>
-          <Image
-            source={vehicleImg}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroPriceBadge}>
-            <Text style={styles.heroPriceText}>Rs. {booking.price}</Text>
+
+        <View style={[styles.telemetryCenter, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+
+          <View style={styles.tcHeader}>
+            <View style={styles.tcHeaderLeft}>
+              <View style={styles.tcPulseDot}>
+                <View style={[styles.tcPulseInner, { backgroundColor: booking.status === 'in_progress' ? '#3B82F6' : booking.status === 'accepted' ? '#06B6D4' : '#F59E0B' }]} />
+              </View>
+              <Text style={[styles.tcHeaderLabel, { color: darkMode ? '#94A3B8' : '#64748B' }]}>
+                {booking.status === 'in_progress' ? 'RADAR DISPATCH ACTIVE' : booking.status === 'accepted' ? 'DISPATCH STANDING BY' : booking.status === 'pending' ? 'AWAITING DISPATCH' : 'SERVICE CLOSED'}
+              </Text>
+            </View>
+            <View style={[styles.tcTicketTag, { backgroundColor: darkMode ? 'rgba(125,160,169,0.1)' : 'rgba(125,160,169,0.12)' }]}>
+              <Text style={styles.tcTicketTagText}>#{booking.id}</Text>
+            </View>
           </View>
+
+
+          <View style={[styles.tcRoute, { backgroundColor: darkMode ? '#0F172A' : '#F1F5F9', borderColor: cardBorder }]}>
+            <View style={styles.tcRouteNode}>
+              <View style={[styles.tcNodeDot, { backgroundColor: '#7DA0A9' }]}>
+                <Ionicons name="business" size={9} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.tcNodeLabel, { color: textSecondary }]}>Dispatch Hub</Text>
+            </View>
+
+            <View style={styles.tcRouteLine}>
+              <View style={[styles.tcRouteLineDash, { borderColor: booking.status === 'in_progress' ? '#3B82F6' : '#94A3B8', opacity: 0.5 }]} />
+              <View style={[styles.tcRouteVehicle, { backgroundColor: cardBg, borderColor: booking.status === 'in_progress' ? '#3B82F6' : '#7DA0A9' }]}>
+                <MaterialCommunityIcons name="truck-delivery" size={11} color={booking.status === 'in_progress' ? '#3B82F6' : '#7DA0A9'} />
+              </View>
+            </View>
+
+            <View style={styles.tcRouteNode}>
+              <View style={[styles.tcNodeDot, { backgroundColor: '#EF4444' }]}>
+                <Ionicons name="location-sharp" size={9} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.tcNodeLabel, { color: textPrimary }]} numberOfLines={2}>{booking.location}</Text>
+            </View>
+          </View>
+
+
+          <View style={styles.tcGrid}>
+            <View style={[styles.tcCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+              <Text style={styles.tcCellLabel}>OBD-II SYSTEM</Text>
+              <Text style={[styles.tcCellValue, { color: booking.status === 'completed' ? '#10B981' : '#EF4444' }]}>
+                {booking.status === 'completed' ? 'COMPLIANT' : 'FAULT_DTC'}
+              </Text>
+            </View>
+            <View style={[styles.tcCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+              <Text style={styles.tcCellLabel}>ETA RANGE</Text>
+              <Text style={[styles.tcCellValue, { color: '#06B6D4' }]}>{booking.eta || 'N/A'}</Text>
+            </View>
+            <View style={[styles.tcCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+              <Text style={styles.tcCellLabel}>DISTANCE</Text>
+              <Text style={[styles.tcCellValue, { color: '#F59E0B' }]}>{booking.distance || 'N/A'}</Text>
+            </View>
+            <View style={styles.tcCell}>
+              <Text style={styles.tcCellLabel}>REVENUE</Text>
+              <Text style={[styles.tcCellValue, { color: '#10B981' }]}>Rs.{booking.price}</Text>
+            </View>
+          </View>
+
+          {/* Navigation CTA */}
+          {(booking.status === 'accepted' || booking.status === 'in_progress') && (
+            <TouchableOpacity
+              style={[styles.tcNavBtn, { backgroundColor: booking.status === 'in_progress' ? '#3B82F6' : '#7DA0A9' }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (booking.status === 'accepted') {
+                  updateBookingStatus(booking.id, 'in_progress');
+                }
+                router.push({
+                  pathname: '/mechanic/navigation',
+                  params: {
+                    id: booking.id,
+                    location: booking.location,
+                    latitude: booking.latitude || 12.9716,
+                    longitude: booking.longitude || 77.5946,
+                  },
+                });
+              }}
+            >
+              <Ionicons name="navigate-circle" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.tcNavBtnText}>
+                {booking.status === 'in_progress' ? 'CONTINUE LIVE NAVIGATION' : 'START DISPATCH NAVIGATION'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {booking.status === 'in_progress' && (
-          <View style={[styles.telemetryHud, { backgroundColor: cardBg, borderColor: '#06B6D4' }]}>
-            <View style={styles.hudHeader}>
-              <View style={styles.hudPulseRow}>
-                <View style={styles.pulseContainer}>
-                  <View style={styles.pulseOuter}>
-                    <View style={styles.pulseInner} />
-                  </View>
-                </View>
-                <Text style={styles.hudTitle}>GPS DISPATCH SYSTEM ACTIVE</Text>
-              </View>
-              <View style={styles.hudBadge}>
-                <Text style={styles.hudBadgeText}>EN ROUTE</Text>
-              </View>
-            </View>
-
-            <View style={styles.hudContent}>
-              <View style={styles.telemetryStatsGrid}>
-                <View style={styles.telemetryStatCell}>
-                  <Ionicons name="speedometer-outline" size={14} color="#06B6D4" />
-                  <View style={{ marginLeft: 6 }}>
-                    <Text style={styles.telemetryStatLabel}>VAN SPEED</Text>
-                    <Text style={[styles.telemetryStatValue, { color: textPrimary }]}>42 km/h</Text>
-                  </View>
-                </View>
-                <View style={styles.telemetryStatCell}>
-                  <Ionicons name="location-outline" size={14} color="#EF4444" />
-                  <View style={{ marginLeft: 6 }}>
-                    <Text style={styles.telemetryStatLabel}>LIVE COORDS</Text>
-                    <Text style={[styles.telemetryStatValue, { color: textPrimary, fontSize: 10 }]}>30.2672° N, 97.7431° W</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.routeVisualizer, { borderColor: cardBorder }]}>
-                <View style={styles.visualizerNodeRow}>
-                  <View style={[styles.visualNode, { backgroundColor: '#7DA0A9' }]}>
-                    <Ionicons name="business" size={10} color="#FFFFFF" />
-                  </View>
-                  <Text style={[styles.visualNodeText, { color: textSecondary }]} numberOfLines={1}>Dispatch Hub</Text>
-                </View>
-                <View style={styles.visualConnectorContainer}>
-                  <View style={styles.visualConnectorDashed} />
-                  <View style={styles.visualConnectorVehicle}>
-                    <MaterialCommunityIcons name="truck-delivery" size={12} color="#06B6D4" />
-                  </View>
-                </View>
-                <View style={styles.visualizerNodeRow}>
-                  <View style={[styles.visualNode, { backgroundColor: '#EF4444' }]}>
-                    <Ionicons name="location-sharp" size={10} color="#FFFFFF" />
-                  </View>
-                  <Text style={[styles.visualNodeText, { color: textPrimary }]} numberOfLines={1}>Breakdown Site</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.simulateNavBtn}
-                onPress={() => {
-                  Alert.alert(
-                    'Launching Built-in HUD Maps',
-                    'Recalibrating high-precision laser telemetry...\n\nSyncing route coordinates with vehicle head-up display dashboard.\n\nSimulating turn-by-turn auditory guidance: "In 200 meters, turn right on Lamar Blvd."',
-                    [{ text: 'Dismiss HUD Overlay', style: 'default' }]
-                  );
-                }}
-              >
-                <Ionicons name="navigate-circle-outline" size={15} color="#06B6D4" style={{ marginRight: 6 }} />
-                <Text style={styles.simulateNavBtnText}>INSPECT HIGH-ACCURACY GPS TRACKER</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {/* The in_progress telemetry HUD is now embedded in the control center above — skip old block */}
 
         {booking.status !== 'rejected' && (
           <View style={[styles.stepperCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -222,7 +228,7 @@ export default function BookingDetailsScreen() {
           darkMode={darkMode}
         />
 
- 
+
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Vehicle Details</Text>
         <View style={[styles.infoCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.infoRow}>
@@ -259,7 +265,7 @@ export default function BookingDetailsScreen() {
           </View>
         </View>
 
-      
+
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Notes</Text>
         <View style={[styles.notesCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Ionicons name="chatbox-ellipses-outline" size={18} color="#F59E0B" style={styles.notesIcon} />
@@ -269,7 +275,7 @@ export default function BookingDetailsScreen() {
           </View>
         </View>
 
-  
+
         <View style={styles.actionBlock}>
           {booking.status === 'pending' ? (
             <View style={styles.carouselButtons}>
@@ -320,42 +326,144 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  heroImageContainer: {
-    width: '100%',
-    height: 180,
+  telemetryCenter: {
     borderRadius: 20,
-    overflow: 'hidden',
     borderWidth: 1,
+    padding: 14,
     marginBottom: 16,
-    position: 'relative',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 4,
+    elevation: 3,
   },
-  heroImage: {
-    width: '100%',
-    height: '100%',
+  tcHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  heroPriceBadge: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+  tcHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  heroPriceText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+  tcPulseDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  tcPulseInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tcHeaderLabel: {
+    fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  tcTicketTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  tcTicketTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#7DA0A9',
+  },
+  tcRoute: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 12,
+    gap: 6,
+  },
+  tcRouteNode: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tcNodeDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tcNodeLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    flex: 1,
+  },
+  tcRouteLine: {
+    width: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  tcRouteLineDash: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 0,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+  },
+  tcRouteVehicle: {
+    padding: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    zIndex: 2,
+  },
+  tcGrid: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.1)',
+    paddingTop: 12,
+    marginBottom: 12,
+  },
+  tcCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  tcCellLabel: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.4,
+    marginBottom: 3,
+    textAlign: 'center',
+  },
+  tcCellValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  tcNavBtn: {
+    height: 42,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  tcNavBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   errorContent: {
     flex: 1,

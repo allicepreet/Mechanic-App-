@@ -1,11 +1,12 @@
 import React, { useState, ComponentProps } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Image, Alert, Modal, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Image, Alert, Modal, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Header from '@/components/Header';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BottomNav from '@/components/BottomNav';
 
 const GARAGE_DOCUMENTS: {
   readonly id: string;
@@ -80,7 +81,7 @@ const GARAGE_DOCUMENTS: {
 ];
 
 export default function ProfileScreen() {
-  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, logout, isOnline } = useMechanic();
+  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, logout, isOnline, setIsOnline } = useMechanic();
   const insets = useSafeAreaInsets();
 
   const [editMode, setEditMode] = useState(false);
@@ -113,17 +114,25 @@ export default function ProfileScreen() {
   };
 
   const handleLogoutSim = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out of your garage account?', [
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: () => {
-          logout();
-          router.replace('/');
+    if (Platform.OS === 'web') {
+      const confirmLogout = window.confirm('Sign Out\n\nAre you sure you want to sign out of your garage account?');
+      if (confirmLogout) {
+        logout();
+        router.replace('/');
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out of your garage account?', [
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            router.replace('/');
+          },
         },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
   };
 
   return (
@@ -163,7 +172,8 @@ export default function ProfileScreen() {
           <Text style={[styles.ownerNameText, { color: textPrimary }]}>{garageInfo.ownerName}</Text>
           <Text style={[styles.garageNameText, { color: textSecondary }]}>{garageInfo.name}</Text>
           
-          <View
+          <TouchableOpacity
+            activeOpacity={0.8}
             style={[
               styles.profileStatusTag,
               {
@@ -171,12 +181,13 @@ export default function ProfileScreen() {
                 borderColor: isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.2)',
               },
             ]}
+            onPress={() => setIsOnline(!isOnline)}
           >
             <View style={[styles.profileStatusDot, { backgroundColor: isOnline ? '#10B981' : '#64748B' }]} />
             <Text style={[styles.profileStatusText, { color: isOnline ? '#10B981' : textSecondary }]}>
               {isOnline ? 'Online • Accepting Bookings' : 'Offline • Shop Closed'}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Counter Badge Rows */}
@@ -395,37 +406,7 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Reusable Premium Floating Bottom Navigation Bar */}
-      <View style={[styles.navbarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={[styles.navbar, darkMode ? styles.navbarDark : styles.navbarLight]}>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/dashboard')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="speedometer" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Dashboard</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/bookings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="construct" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Bookings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/earnings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="cash" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Earnings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-            <View style={[styles.activeTabHighlight, { backgroundColor: darkMode ? 'rgba(125, 160, 169, 0.15)' : 'rgba(125, 160, 169, 0.12)' }]}>
-              <Ionicons name="person" size={20} color={primaryAccent} />
-            </View>
-            <Text style={[styles.navTextActive, { color: primaryAccent }]}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNav />
 
       {/* Premium Document Details Drawer Modal */}
       <Modal
@@ -456,7 +437,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.modalSubtitle, { color: textSecondary }]}>{selectedDoc.authority}</Text>
                 </View>
 
-                {/* Grid of Key-Value Metadata */}
+                
                 <View style={[styles.metaGrid, { borderColor: cardBorder }]}>
                   <View style={styles.metaGridCell}>
                     <Text style={[styles.metaLabel, { color: textSecondary }]}>REGISTRATION NO.</Text>

@@ -55,12 +55,45 @@ export default function BookingCard({
 
   const cardContent = (
     <>
-      {/* Premium Car Image Banner */}
-      <Image
-        source={vehicleImg}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
+      {/* Sleek Digital Service Ticket HUD Banner */}
+      <View style={[styles.telemetryHUD, { backgroundColor: darkMode ? '#0F172A' : '#F8FAFC', borderColor: cardBorder }]}>
+        <View style={styles.hudTopRow}>
+          <View style={styles.hudPulseRow}>
+            <View style={styles.pulseContainer}>
+              <View style={[styles.pulseOuter, { backgroundColor: booking.status === 'in_progress' ? 'rgba(59, 130, 246, 0.2)' : booking.status === 'accepted' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(245, 158, 11, 0.2)' }]}>
+                <View style={[styles.pulseInner, { backgroundColor: booking.status === 'in_progress' ? '#3B82F6' : booking.status === 'accepted' ? '#06B6D4' : '#F59E0B' }]} />
+              </View>
+            </View>
+            <Text style={[styles.hudLabel, { color: textSecondary }]}>
+              {booking.status === 'in_progress' ? 'DISPATCH RADAR ACTIVE' : booking.status === 'accepted' ? 'DISPATCH READY' : 'OBD-II INACTIVE'}
+            </Text>
+          </View>
+          <View style={[styles.ticketBadge, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.03)' }]}>
+            <Text style={[styles.ticketBadgeText, { color: textSecondary }]}>TICKET {booking.id}</Text>
+          </View>
+        </View>
+
+        <View style={styles.hudGrid}>
+          <View style={[styles.hudCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+            <Text style={styles.hudCellLabel}>OBD METRIC</Text>
+            <Text style={[styles.hudCellValue, { color: booking.status === 'completed' ? '#10B981' : '#EF4444' }]}>
+              {booking.status === 'completed' ? 'SYS_PASS' : 'FAULT_DTC_1'}
+            </Text>
+          </View>
+          <View style={[styles.hudCell, { borderRightWidth: 1, borderRightColor: cardBorder }]}>
+            <Text style={styles.hudCellLabel}>EST TIME</Text>
+            <Text style={[styles.hudCellValue, { color: '#06B6D4' }]}>
+              {booking.vehicle.includes('Tesla') ? '2.5 Hrs' : '3.0 Hrs'}
+            </Text>
+          </View>
+          <View style={styles.hudCell}>
+            <Text style={styles.hudCellLabel}>COORDINATES</Text>
+            <Text style={[styles.hudCellValue, { color: textPrimary, fontSize: 8 }]} numberOfLines={1}>
+              30.267° N, 97.743° W
+            </Text>
+          </View>
+        </View>
+      </View>
 
       {/* Header section with vehicle and status tag */}
       <View style={styles.cardHeader}>
@@ -407,6 +440,79 @@ const styles = StyleSheet.create({
   gpsNavigateBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  telemetryHUD: {
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    height: 76,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  hudTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  hudPulseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pulseContainer: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  pulseOuter: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulseInner: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  hudLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  ticketBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ticketBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  hudGrid: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    paddingTop: 8,
+  },
+  hudCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hudCellLabel: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  hudCellValue: {
+    fontSize: 10,
     fontWeight: '800',
   },
 });

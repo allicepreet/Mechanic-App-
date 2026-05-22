@@ -124,7 +124,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* FAQs accordion section */}
+        
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Operations FAQ</Text>
         <View style={styles.faqBlock}>
           {faqData.map((faq, index) => {
@@ -154,7 +154,7 @@ export default function SettingsScreen() {
           })}
         </View>
 
-        {/* App Version Diagnostics Info */}
+        
         <View style={styles.versionContainer}>
           <MaterialCommunityIcons name="shield-key-outline" size={18} color={textSecondary} />
           <Text style={[styles.versionText, { color: textSecondary }]}>

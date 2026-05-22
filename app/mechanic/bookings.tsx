@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import BottomNav from '@/components/BottomNav';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic, Booking } from '@/components/MechanicContext';
 import BookingCard from '@/components/BookingCard';
-import TinderCardStack from '@/components/TinderCardStack';
 import Header from '@/components/Header';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -150,37 +150,7 @@ export default function BookingsScreen() {
       </ScrollView>
 
       
-      <View style={[styles.navbarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={[styles.navbar, darkMode ? styles.navbarDark : styles.navbarLight]}>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/dashboard')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="speedometer" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Dashboard</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-            <View style={[styles.activeTabHighlight, { backgroundColor: darkMode ? 'rgba(125, 160, 169, 0.15)' : 'rgba(125, 160, 169, 0.12)' }]}>
-              <Ionicons name="construct" size={20} color={primaryAccent} />
-            </View>
-            <Text style={[styles.navTextActive, { color: primaryAccent }]}>Bookings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/earnings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="cash" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Earnings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/profile')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="person" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNav />
     </View>
   );
 }
