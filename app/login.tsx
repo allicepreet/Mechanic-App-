@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, AlertButton } from 'react-native';
-import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AlertButton, Animated, Dimensions, Easing, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -20,7 +20,7 @@ export default function LoginScreen() {
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
-  
+
   // Slide up panel and logo transition animations
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -148,11 +148,11 @@ export default function LoginScreen() {
           'Could not connect to the API server. Would you like to enter in Simulated Demo Mode for previewing the app dashboard?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Enter Demo Mode', 
+            {
+              text: 'Enter Demo Mode',
               onPress: () => {
                 router.replace('/mechanic/dashboard');
-              } 
+              }
             }
           ]
         );
@@ -163,15 +163,9 @@ export default function LoginScreen() {
   };
 
   // Interpolations for meshing rotating cogs (opposite directions!)
-  const rotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+  const rotation = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  const rotationCounter = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['360deg', '0deg'],
-  });
+  const rotationCounter = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
   const scriptFont = Platform.select({
     ios: 'Snell Roundhand',
@@ -222,15 +216,15 @@ export default function LoginScreen() {
 
             {/* Glowing Wrench Core inside a solid metal shield ring */}
             <View style={styles.innerRing}>
-              <MaterialCommunityIcons 
-                name="wrench" 
-                size={52} 
-                color={neonGreen} 
+              <MaterialCommunityIcons
+                name="wrench"
+                size={52}
+                color={neonGreen}
                 style={{
                   textShadowColor: neonGreen,
                   textShadowOffset: { width: 0, height: 0 },
                   textShadowRadius: 8,
-                }} 
+                }}
               />
             </View>
 
@@ -269,7 +263,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {/* Login Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.circleChevronBtn}
             activeOpacity={0.85}
             onPress={handleOpenAuth}
@@ -280,9 +274,9 @@ export default function LoginScreen() {
       )}
 
       {/* Frosted Glass Slide-up Auth Panel */}
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.authPanelContainer, 
+          styles.authPanelContainer,
           { transform: [{ translateY: slideAnim }] }
         ]}
       >
@@ -291,7 +285,7 @@ export default function LoginScreen() {
           style={[styles.keyboardContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}
         >
           <View style={styles.dragHandle} />
-          
+
           <View style={styles.authHeaderBlock}>
             <View style={styles.authLogoBadge}>
               <MaterialCommunityIcons name="shield-lock-outline" size={24} color={neonGreen} />
@@ -311,11 +305,11 @@ export default function LoginScreen() {
                 isEmailFocused && styles.inputWrapperFocused
               ]}
             >
-              <Ionicons 
-                name="mail-outline" 
-                size={18} 
-                color={isEmailFocused ? neonGreen : '#94A3B8'} 
-                style={styles.inputIcon} 
+              <Ionicons
+                name="mail-outline"
+                size={18}
+                color={isEmailFocused ? neonGreen : '#94A3B8'}
+                style={styles.inputIcon}
               />
               <TextInput
                 style={styles.textInput}
@@ -340,11 +334,11 @@ export default function LoginScreen() {
                 isPasswordFocused && styles.inputWrapperFocused
               ]}
             >
-              <Ionicons 
-                name="lock-closed-outline" 
-                size={18} 
-                color={isPasswordFocused ? neonGreen : '#94A3B8'} 
-                style={styles.inputIcon} 
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={isPasswordFocused ? neonGreen : '#94A3B8'}
+                style={styles.inputIcon}
               />
               <TextInput
                 style={styles.textInput}
@@ -357,8 +351,8 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
-              <TouchableOpacity 
-                style={styles.eyeToggle} 
+              <TouchableOpacity
+                style={styles.eyeToggle}
                 onPress={() => setShowPassword(!showPassword)}
               >
                 <Ionicons
@@ -402,16 +396,16 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {/* Register Link */}
-          <TouchableOpacity 
-            style={styles.backBtn} 
+          <TouchableOpacity
+            style={styles.backBtn}
             onPress={() => router.replace('/register')}
           >
             <Text style={[styles.backBtnText, { color: '#00E676' }]}>Register New Terminal (Sign Up)</Text>
           </TouchableOpacity>
 
           {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backBtn} 
+          <TouchableOpacity
+            style={styles.backBtn}
             onPress={handleCloseAuth}
           >
             <Text style={styles.backBtnText}>Back to Splash</Text>
@@ -546,7 +540,7 @@ const styles = StyleSheet.create({
     left: 80,
     fontWeight: '600',
   },
-  // Inverted Dome Tab containing chevron button at bottom center
+
   invertedDomeContainer: {
     position: 'absolute',
     bottom: 0,

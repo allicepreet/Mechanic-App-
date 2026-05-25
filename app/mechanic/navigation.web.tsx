@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Text, Dimensions, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, Image, Platform, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -13,9 +13,16 @@ export default function NavigationScreen() {
   const params = useLocalSearchParams();
   const { id = 'Unknown', location = 'Unknown', latitude = 12.9716, longitude = 77.5946 } = params as any;
 
-  const { bookings, currentCoords, setCurrentCoords, updateBookingStatus, darkMode } = useMechanic();
+  const { bookings, currentCoords, setCurrentCoords, updateBookingStatus, generateBill, darkMode } = useMechanic();
+  const [showBillModal, setShowBillModal] = React.useState(false);
+  const [serviceFee, setServiceFee] = React.useState('120');
+  const [partsCost, setPartsCost] = React.useState('0');
+  const [extraCharges, setExtraCharges] = React.useState('0');
 
-  const booking = bookings.find((b) => b.id === id);
+  const billTotal = (parseFloat(serviceFee || '0') + parseFloat(partsCost || '0') + parseFloat(extraCharges || '0')).toFixed(2);
+
+  const bookingId = Array.isArray(id) ? id[0] : id;
+  const booking = bookings.find((b) => String(b.id) === String(bookingId));
 
   // Positions
   const startPos = { latitude: 12.9352, longitude: 77.6245 };
@@ -108,10 +115,23 @@ export default function NavigationScreen() {
 
   const { icon: turnIcon, text: turnText, eta: simulatedEta, distance: simulatedDist } = getTurnDetails(stepIndex);
 
-  const handleArrival = () => {
-    updateBookingStatus(id, 'completed');
-    window.alert(`🎉 SERVICE COMPLETED\n\nYou have successfully arrived at the client breakdown site and resolved the emergency. The service ticket has been updated to completed.`);
-    router.replace('/mechanic/dashboard');
+  const handleArrival = async () => {
+    if (!booking) {
+      console.log('No booking found for id:', bookingId);
+      return;
+    }
+
+    if (booking.status === 'in_progress') {
+      try {
+        await updateBookingStatus(bookingId, 'arrived');
+        // Removed window.alert to prevent blocking the UI thread and breaking state updates on Web
+        setTimeout(() => setShowBillModal(true), 100);
+      } catch (error) {
+        console.error(error);
+      }
+    } else if (booking.status === 'arrived') {
+      setShowBillModal(true);
+    }
   };
 
   const activeBg = darkMode ? '#0F172A' : '#F4F6F8';
@@ -215,13 +235,107 @@ export default function NavigationScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.arrivalBtn} onPress={handleArrival}>
-            <Ionicons name="checkmark-done" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.arrivalBtnText}>ARRIVED</Text>
+          <TouchableOpacity 
+            style={[styles.arrivalBtn, { backgroundColor: booking?.status === 'arrived' ? '#06B6D4' : '#10B981' }]} 
+            onPress={handleArrival}
+          >
+            <Ionicons name={booking?.status === 'arrived' ? "receipt" : "checkmark-done"} size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.arrivalBtnText}>{booking?.status === 'arrived' ? 'GENERATE BILL' : 'ARRIVED'}</Text>
           </TouchableOpacity>
         </View>
 
       </View>
+
+      {/* Pop-up Bill Modal */}
+      {showBillModal && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }]}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <View style={styles.billHeader}>
+                <Ionicons name="receipt-outline" size={28} color="#10B981" />
+                <Text style={[styles.billTitle, { color: textPrimary, fontSize: 22 }]}>Bill Summary</Text>
+              </View>
+              <Text style={{ color: textSecondary, marginBottom: 20, textAlign: 'center' }}>
+                Booking #{booking?.id}
+              </Text>
+              <View style={styles.billDivider} />
+              <View style={styles.billRow}>
+                <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Service Fee</Text>
+                <View style={styles.inputContainer}>
+                  <Text style={{color: textSecondary}}>$</Text>
+                  <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={serviceFee} onChangeText={setServiceFee} />
+                </View>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Parts Cost</Text>
+                <View style={styles.inputContainer}>
+                  <Text style={{color: textSecondary}}>$</Text>
+                  <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={partsCost} onChangeText={setPartsCost} />
+                </View>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Extra Charges</Text>
+                <View style={styles.inputContainer}>
+                  <Text style={{color: textSecondary}}>$</Text>
+                  <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={extraCharges} onChangeText={setExtraCharges} />
+                </View>
+              </View>
+              <View style={styles.billDividerDashed} />
+              <View style={styles.billRow}>
+                <Text style={[styles.billTotalLabel, { color: textPrimary }]}>Total</Text>
+                <Text style={[styles.billTotalValue, { color: '#10B981' }]}>${billTotal}</Text>
+              </View>
+              <Text style={[styles.billFooter, { color: textSecondary, marginTop: 24 }]}>
+                Billing Details: General Service.{'\n'}
+                Bill generated and sent to customer.
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 32 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: 'transparent', height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: textSecondary }}
+                  onPress={() => setShowBillModal(false)}
+                >
+                  <Text style={{ color: textSecondary, fontWeight: '800', fontSize: 16 }}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#10B981', height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+                  onPress={async () => {
+                    if (!booking) return;
+                    try {
+                      const billResult = await generateBill(booking.id, {
+                        serviceCharge: parseFloat(serviceFee || '0'),
+                        partsCost: parseFloat(partsCost || '0'),
+                        extraCharges: parseFloat(extraCharges || '0'),
+                        billingDetails: 'Custom Generated Bill'
+                      });
+                      if (billResult.success || billResult.isOffline) {
+                        await updateBookingStatus(booking.id, 'completed');
+                        setShowBillModal(false);
+                        window.alert('Success: Job Completed.');
+                        router.replace('/mechanic/dashboard');
+                      } else {
+                        window.alert(`Error: ${billResult.error || 'Failed to generate bill.'}`);
+                      }
+                    } catch (error) {
+                      window.alert('Error: Failed to complete job.');
+                    }
+                  }}
+                >
+                  <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>Complete</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={{ alignItems: 'center', marginTop: 12, padding: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 8 }}>
+                <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '700' }}>CALLING ENDPOINT:</Text>
+                <Text style={{ color: textSecondary, fontSize: 10, marginTop: 2, fontFamily: 'monospace' }}>
+                  PATCH /api/booking/complete/{booking?.id.replace(/\D/g, '')}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -455,4 +569,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', borderRadius: 20, borderWidth: 1, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15 },
+  billHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  billTitle: { fontSize: 16, fontWeight: '800', marginLeft: 8 },
+  billDivider: { height: 1, backgroundColor: 'rgba(150, 150, 150, 0.1)', marginBottom: 12 },
+  billDividerDashed: { height: 1, borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(150, 150, 150, 0.2)', marginVertical: 12 },
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  billLabel: { fontSize: 14, fontWeight: '500' },
+  billValue: { fontSize: 14, fontWeight: '700' },
+  billTotalLabel: { fontSize: 16, fontWeight: '800' },
+  billTotalValue: { fontSize: 18, fontWeight: '900' },
+  billFooter: { fontSize: 11, fontStyle: 'italic', marginTop: 12, textAlign: 'center' },
+  carouselBtn: { flex: 1, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' },
+  billInput: { fontSize: 14, fontWeight: '700', minWidth: 60, textAlign: 'right', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 4 },
 });

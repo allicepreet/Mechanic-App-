@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Alert } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -38,6 +38,8 @@ export default function BookingCard({
         return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981', icon: 'checkbox-marked-circle' };
       case 'rejected':
         return { bg: 'rgba(239, 68, 68, 0.15)', text: '#EF4444', icon: 'close-circle' };
+      case 'arrived':
+        return { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981', icon: 'map-marker-check' };
     }
   };
 
@@ -236,25 +238,39 @@ export default function BookingCard({
             style={[styles.gpsNavigateBtn, { backgroundColor: booking.status === 'accepted' ? '#06B6D4' : '#3B82F6' }]}
             onPress={(e) => {
               e.stopPropagation(); // prevent card click navigation
-              Alert.alert(
-                'Simulated GPS Routing Active',
-                `Departing mobile dispatch hub!\n\nRouting turn-by-turn directions to client's stranded vehicle:\n\nLocation: ${booking.location}\n\nDistance: ${booking.distance || '3.5 km'} | ETA: ${booking.eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      if (booking.status === 'accepted') {
-                        updateBookingStatus(booking.id, 'in_progress');
-                      }
-                      router.push({
-                        pathname: '/mechanic/booking-details',
-                        params: { id: booking.id },
-                      });
+              
+              const alertMsg = `Departing mobile dispatch hub!\n\nRouting turn-by-turn directions to client's stranded vehicle:\n\nLocation: ${booking.location}\n\nDistance: ${booking.distance || '3.5 km'} | ETA: ${booking.eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`;
+              
+              if (Platform.OS === 'web') {
+                window.alert(`Simulated GPS Routing Active\n\n${alertMsg}`);
+                if (booking.status === 'accepted') {
+                  updateBookingStatus(booking.id, 'in_progress');
+                }
+                router.push({
+                  pathname: '/mechanic/navigation',
+                  params: { id: booking.id },
+                });
+              } else {
+                Alert.alert(
+                  'Simulated GPS Routing Active',
+                  alertMsg,
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        if (booking.status === 'accepted') {
+                          updateBookingStatus(booking.id, 'in_progress');
+                        }
+                        router.push({
+                          pathname: '/mechanic/navigation',
+                          params: { id: booking.id },
+                        });
+                      },
+                      style: 'default',
                     },
-                    style: 'default',
-                  },
-                ]
-              );
+                  ]
+                );
+              }
             }}
           >
             <Ionicons name="navigate-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />

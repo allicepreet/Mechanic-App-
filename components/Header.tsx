@@ -1,7 +1,7 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
-import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderProps {
@@ -20,7 +20,7 @@ export default function Header({
   darkMode = true,
 }: HeaderProps) {
   const insets = useSafeAreaInsets();
-  
+
   const activeBg = darkMode ? '#151718' : '#FFFFFF';
   const activeBorder = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
   const activeText = darkMode ? '#ECEDEE' : '#0F172A';

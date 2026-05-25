@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 
 interface CustomerCardProps {
   name: string;
@@ -9,6 +9,7 @@ interface CustomerCardProps {
   distance?: string;
   eta?: string;
   darkMode?: boolean;
+  bookingId?: string;
 }
 
 export default function CustomerCard({
@@ -18,6 +19,7 @@ export default function CustomerCard({
   distance,
   eta,
   darkMode = true,
+  bookingId,
 }: CustomerCardProps) {
   const cardBg = darkMode ? '#1E2022' : '#FFFFFF';
   const textPrimary = darkMode ? '#ECEDEE' : '#0F172A';
@@ -40,11 +42,11 @@ export default function CustomerCard({
         if (supported) {
           Linking.openURL(url);
         } else {
-          Alert.alert('Phone Call Simulation', `Dialing customer: ${phone}`);
+          Platform.OS === 'web' ? window.alert(`Phone Call Simulation: Dialing customer: ${phone}`) : Alert.alert('Phone Call Simulation', `Dialing customer: ${phone}`);
         }
       })
       .catch(() => {
-        Alert.alert('Phone Call Simulation', `Dialing customer: ${phone}`);
+        Platform.OS === 'web' ? window.alert(`Phone Call Simulation: Dialing customer: ${phone}`) : Alert.alert('Phone Call Simulation', `Dialing customer: ${phone}`);
       });
   };
 
@@ -55,20 +57,22 @@ export default function CustomerCard({
         if (supported) {
           Linking.openURL(url);
         } else {
-          Alert.alert('SMS Simulation', `Opening text conversation with: ${phone}`);
+          Platform.OS === 'web' ? window.alert(`SMS Simulation: Opening text conversation with: ${phone}`) : Alert.alert('SMS Simulation', `Opening text conversation with: ${phone}`);
         }
       })
       .catch(() => {
-        Alert.alert('SMS Simulation', `Opening text conversation with: ${phone}`);
+        Platform.OS === 'web' ? window.alert(`SMS Simulation: Opening text conversation with: ${phone}`) : Alert.alert('SMS Simulation', `Opening text conversation with: ${phone}`);
       });
   };
 
   const handleNavigation = () => {
-    Alert.alert(
-      'Simulated GPS Routing Active',
-      `Starting live turn-by-turn routing to customer's breakdown location:\n\nLocation: ${location}\n\nDistance: ${distance || '3.5 km'} away | ETA: ${eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`,
-      [{ text: 'OK', style: 'default' }]
-    );
+    if (bookingId) {
+      import('expo-router').then(({ router }) => {
+        router.push({ pathname: '/mechanic/navigation', params: { id: bookingId } });
+      });
+    } else {
+      Platform.OS === 'web' ? window.alert('Error: No booking ID found for navigation.') : Alert.alert('Error', 'No booking ID found for navigation.');
+    }
   };
 
   return (

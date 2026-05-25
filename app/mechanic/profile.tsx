@@ -81,7 +81,7 @@ const GARAGE_DOCUMENTS: {
 ];
 
 export default function ProfileScreen() {
-  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, logout, isOnline, setIsOnline } = useMechanic();
+  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, updateProfileOnServer, logout, isOnline, setIsOnline } = useMechanic();
   const insets = useSafeAreaInsets();
 
   const [editMode, setEditMode] = useState(false);
@@ -101,16 +101,28 @@ export default function ProfileScreen() {
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
   const primaryAccent = '#7DA0A9';
 
-  const handleSave = () => {
-    updateGarageInfo({
-      name: shopName,
-      ownerName: owner,
-      phone,
-      address,
-      workingHours: hours,
-    });
-    setEditMode(false);
-    Alert.alert('Profile Saved', 'Your garage credentials have been successfully updated across the ecosystem.');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    
+    // Call server API
+    const result = await updateProfileOnServer(owner, phone, '8+ Years');
+    
+    if (result.success) {
+      updateGarageInfo({
+        name: shopName,
+        ownerName: owner,
+        phone,
+        address,
+        workingHours: hours,
+      });
+      setEditMode(false);
+      Alert.alert('Profile Saved', 'Your profile has been updated on the server.');
+    } else {
+      Alert.alert('Error', result.error || 'Failed to update profile on the server.');
+    }
+    setIsSaving(false);
   };
 
   const handleLogoutSim = () => {
@@ -219,6 +231,7 @@ export default function ProfileScreen() {
           <View style={styles.editorHeader}>
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>Garage Settings</Text>
             <TouchableOpacity
+              disabled={isSaving}
               onPress={() => {
                 if (editMode) {
                   handleSave();
@@ -226,8 +239,20 @@ export default function ProfileScreen() {
                   setEditMode(true);
                 }
               }}
+              style={{ alignItems: 'flex-end' }}
             >
-              <Text style={styles.editBtnText}>{editMode ? 'Save Profile' : 'Edit Credentials'}</Text>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.editBtnText}>{editMode ? 'Save Profile' : 'Edit Credentials'}</Text>
+                  {editMode && (
+                    <Text style={{ color: 'rgba(245, 158, 11, 0.7)', fontSize: 8, marginTop: 2, fontFamily: 'monospace' }}>
+                      PUT /api/user/profile/update
+                    </Text>
+                  )}
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 

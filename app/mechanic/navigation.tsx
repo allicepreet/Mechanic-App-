@@ -1,25 +1,11 @@
-import React from 'react';
-import { View, StyleSheet, Text, Platform, Dimensions, TouchableOpacity, Alert, Image } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Booking, useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useMechanic } from '@/components/MechanicContext';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Dimensions, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 
-// Conditionally import react-native-maps only on native platforms (Commented out for web bundling compatibility)
-let MapView: any = null;
-let Marker: any = null;
-let Polyline: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-/*
-if (Platform.OS !== 'web') {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  Polyline = Maps.Polyline;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-}
-*/
+import { MapView, Marker, Polyline, UrlTile } from '@/components/MapModule';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const primaryAccent = '#7DA0A9';
@@ -29,13 +15,24 @@ export default function NavigationScreen() {
   const params = useLocalSearchParams();
   const { id = 'Unknown', location = 'Unknown', latitude = 12.9716, longitude = 77.5946 } = params as any;
 
-  const { bookings, currentCoords, setCurrentCoords, updateBookingStatus, darkMode } = useMechanic();
+  const { bookings, currentCoords, setCurrentCoords, updateBookingStatus, generateBill, darkMode } = useMechanic();
+  const [showBillModal, setShowBillModal] = useState(false);
+  const [serviceFee, setServiceFee] = useState('120');
+  const [partsCost, setPartsCost] = useState('0');
+  const [extraCharges, setExtraCharges] = useState('0');
 
-  const booking = bookings.find((b) => b.id === id);
+  const billTotal = (parseFloat(serviceFee || '0') + parseFloat(partsCost || '0') + parseFloat(extraCharges || '0')).toFixed(2);
+
+  const bookingId = Array.isArray(id) ? id[0] : id;
+  const booking = bookings.find((b) => String(b.id) === String(bookingId));
+
+  // Use booking's actual location if available, otherwise fallback
+  const destLat = booking?.latitude || Number(latitude);
+  const destLon = booking?.longitude || Number(longitude);
 
   // Positions
-  const startPos = { latitude: 12.9352, longitude: 77.6245 };
-  const destinationPos = { latitude: Number(latitude), longitude: Number(longitude) };
+  const startPos = currentCoords || { latitude: 12.9352, longitude: 77.6245 };
+  const destinationPos = { latitude: destLat, longitude: destLon };
 
   const [currentSimulatedPos, setCurrentSimulatedPos] = React.useState(startPos);
   const [stepIndex, setStepIndex] = React.useState(0);
@@ -58,6 +55,8 @@ export default function NavigationScreen() {
 
     // Route coordinates steps progression
     timer = setInterval(() => {
+      let nextCoords: any = null;
+
       setStepIndex((idx) => {
         const nextIdx = idx + 1;
         if (nextIdx > 4) {
@@ -68,15 +67,17 @@ export default function NavigationScreen() {
         const t = nextIdx / 4;
         const nextLat = startPos.latitude + (destinationPos.latitude - startPos.latitude) * t;
         const nextLon = startPos.longitude + (destinationPos.longitude - startPos.longitude) * t;
-        
-        const newCoords = { latitude: nextLat, longitude: nextLon };
-        setCurrentSimulatedPos(newCoords);
-        
-        // Push coordinate telemetry to MechanicContext for real-time WebSocket streaming
-        setCurrentCoords(newCoords);
+
+        nextCoords = { latitude: nextLat, longitude: nextLon };
 
         return nextIdx;
       });
+
+      // Update state outside of the setStepIndex callback to prevent React render warnings
+      if (nextCoords) {
+        setCurrentSimulatedPos(nextCoords);
+        setCurrentCoords(nextCoords);
+      }
     }, 4500);
 
     return () => {
@@ -135,19 +136,26 @@ export default function NavigationScreen() {
     longitudeDelta: Math.abs(currentSimulatedPos.longitude - destinationPos.longitude) * 2.2 || 0.03,
   };
 
-  const handleArrival = () => {
-    updateBookingStatus(id, 'completed');
-    const msg = 'You have successfully arrived at the client breakdown site and resolved the emergency. The service ticket has been updated to completed.';
-    
-    if (Platform.OS === 'web') {
-      window.alert(`🎉 SERVICE COMPLETED\n\n${msg}`);
-      router.replace('/mechanic/dashboard');
-    } else {
-      Alert.alert(
-        '🎉 Service Completed',
-        msg,
-        [{ text: 'Return to Dashboard', onPress: () => router.replace('/mechanic/dashboard') }]
-      );
+  const handleAction = async () => {
+    if (!booking) {
+      console.log('No booking found for id:', bookingId);
+      return;
+    }
+
+    if (booking.status === 'in_progress') {
+      try {
+        await updateBookingStatus(bookingId, 'arrived');
+        if (Platform.OS === 'web') {
+          window.alert(`📍 ARRIVED\n\nYou have successfully arrived at the client breakdown site.`);
+        } else {
+          Alert.alert('📍 ARRIVED', 'You have successfully arrived at the client breakdown site.');
+        }
+        setShowBillModal(true); // Automatically open the bill modal!
+      } catch (error) {
+        console.log('Local status update for arrived:', error);
+      }
+    } else if (booking.status === 'arrived') {
+      setShowBillModal(true);
     }
   };
 
@@ -173,17 +181,23 @@ export default function NavigationScreen() {
       <View style={styles.mapContainer}>
         {Platform.OS !== 'web' && MapView ? (
           <MapView
-            provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={region}
             showsUserLocation={false}
+            mapType="none" // Important so it doesn't show standard Apple/Google map under OSM
           >
+            <UrlTile
+              urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
             <Marker coordinate={currentSimulatedPos} title="Mechanic (You)" pinColor={primaryAccent} />
             <Marker coordinate={destinationPos} title={String(location)} pinColor="red" />
             <Polyline
-              coordinates={[currentSimulatedPos, destinationPos]}
-              strokeColor={primaryAccent}
-              strokeWidth={5}
+              coordinates={[startPos, destinationPos]}
+              strokeColor="#3B82F6"
+              strokeWidth={8} // Broad line requested by user
+              lineDashPattern={[0]}
             />
           </MapView>
         ) : (
@@ -219,7 +233,7 @@ export default function NavigationScreen() {
 
       {/* Bottom half: Rich Driving Telemetry Cockpit HUD */}
       <View style={[styles.hudContainer, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-        
+
         {/* Pulsing signal status bar */}
         <View style={styles.statusRow}>
           <View style={styles.pulseDotRow}>
@@ -270,13 +284,107 @@ export default function NavigationScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.arrivalBtn} onPress={handleArrival}>
-            <Ionicons name="checkmark-done" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.arrivalBtnText}>ARRIVED</Text>
+          <TouchableOpacity 
+            style={[styles.arrivalBtn, { backgroundColor: booking?.status === 'arrived' ? '#06B6D4' : '#10B981' }]} 
+            onPress={handleAction}
+          >
+            <Ionicons name={booking?.status === 'arrived' ? "receipt" : "checkmark-done"} size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.arrivalBtnText}>{booking?.status === 'arrived' ? 'GENERATE BILL' : 'ARRIVED'}</Text>
           </TouchableOpacity>
         </View>
 
       </View>
+
+      {/* Pop-up Bill Modal */}
+      <Modal
+        visible={showBillModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowBillModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View style={styles.billHeader}>
+              <Ionicons name="receipt-outline" size={28} color="#10B981" />
+              <Text style={[styles.billTitle, { color: textPrimary, fontSize: 22 }]}>Bill Summary</Text>
+            </View>
+            <Text style={{ color: textSecondary, marginBottom: 20, textAlign: 'center' }}>
+              Booking #{booking?.id}
+            </Text>
+            <View style={styles.billDivider} />
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Service Fee</Text>
+              <View style={styles.inputContainer}>
+                <Text style={{color: textSecondary}}>$</Text>
+                <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={serviceFee} onChangeText={setServiceFee} />
+              </View>
+            </View>
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Parts Cost</Text>
+              <View style={styles.inputContainer}>
+                <Text style={{color: textSecondary}}>$</Text>
+                <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={partsCost} onChangeText={setPartsCost} />
+              </View>
+            </View>
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, { color: textSecondary, alignSelf: 'center' }]}>Extra Charges</Text>
+              <View style={styles.inputContainer}>
+                <Text style={{color: textSecondary}}>$</Text>
+                <TextInput style={[styles.billInput, { color: textPrimary, borderColor: cardBorder }]} keyboardType="numeric" value={extraCharges} onChangeText={setExtraCharges} />
+              </View>
+            </View>
+            <View style={styles.billDividerDashed} />
+            <View style={styles.billRow}>
+              <Text style={[styles.billTotalLabel, { color: textPrimary }]}>Total</Text>
+              <Text style={[styles.billTotalValue, { color: '#10B981' }]}>${billTotal}</Text>
+            </View>
+            <Text style={[styles.billFooter, { color: textSecondary, marginTop: 24 }]}>
+              Billing Details: General Service.{'\n'}
+              Bill generated and sent to customer.
+            </Text>
+
+            <TouchableOpacity
+              style={{ width: '100%', backgroundColor: '#10B981', marginTop: 32, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+              onPress={async () => {
+                if (!booking) return;
+                try {
+                  const billResult = await generateBill(booking.id, {
+                    serviceCharge: parseFloat(serviceFee || '0'),
+                    partsCost: parseFloat(partsCost || '0'),
+                    extraCharges: parseFloat(extraCharges || '0'),
+                    billingDetails: 'Custom Generated Bill'
+                  });
+                  if (billResult.success || billResult.isOffline) {
+                    await updateBookingStatus(booking.id, 'completed');
+                    setShowBillModal(false);
+                    if (Platform.OS === 'web') {
+                      window.alert('Success: Job Completed.');
+                    } else {
+                      Alert.alert('Success', 'Job Completed.');
+                    }
+                    router.back();
+                  } else {
+                    Platform.OS === 'web' 
+                      ? window.alert(`Error: ${billResult.error || 'Failed to generate bill.'}`) 
+                      : Alert.alert('Error', billResult.error || 'Failed to generate bill.');
+                  }
+                } catch (error) {
+                  Platform.OS === 'web' ? window.alert('Error: Failed to complete job.') : Alert.alert('Error', 'Failed to complete job.');
+                }
+              }}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>Generate & Complete</Text>
+            </TouchableOpacity>
+            
+            <View style={{ alignItems: 'center', marginTop: 12, padding: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 8 }}>
+              <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '700' }}>CALLING ENDPOINT:</Text>
+              <Text style={{ color: textSecondary, fontSize: 10, marginTop: 2, fontFamily: 'monospace' }}>
+                PATCH /api/booking/complete/{booking?.id.replace(/\D/g, '')}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -393,6 +501,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     borderTopWidth: 1,
     padding: 18,
+    paddingBottom: 40,
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
@@ -511,7 +620,22 @@ const styles = StyleSheet.create({
   },
   arrivalBtnText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '800',
   },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', borderRadius: 20, borderWidth: 1, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 15 },
+  billHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  billTitle: { fontSize: 16, fontWeight: '800', marginLeft: 8 },
+  billDivider: { height: 1, backgroundColor: 'rgba(150, 150, 150, 0.1)', marginBottom: 12 },
+  billDividerDashed: { height: 1, borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(150, 150, 150, 0.2)', marginVertical: 12 },
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  billLabel: { fontSize: 14, fontWeight: '500' },
+  billValue: { fontSize: 14, fontWeight: '700' },
+  billTotalLabel: { fontSize: 16, fontWeight: '800' },
+  billTotalValue: { fontSize: 18, fontWeight: '900' },
+  billFooter: { fontSize: 11, fontStyle: 'italic', marginTop: 12, textAlign: 'center' },
+  carouselBtn: { flex: 1, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' },
+  billInput: { fontSize: 14, fontWeight: '700', minWidth: 60, textAlign: 'right', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 4 },
 });

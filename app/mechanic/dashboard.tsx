@@ -65,7 +65,7 @@ export default function DashboardScreen() {
 
   // Filter bookings for sections
   const pendingRequests = isOnline ? bookings.filter((b) => b.status === 'pending') : [];
-  const activeJobs = bookings.filter((b) => b.status === 'accepted' || b.status === 'in_progress');
+  const activeJobs = bookings.filter((b) => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'arrived');
   // Top pending request (shown as notification)
   const topRequest = pendingRequests[0] ?? null;
 
@@ -97,7 +97,7 @@ export default function DashboardScreen() {
           <View style={styles.brandInfo}>
             <Text style={[styles.garageText, { color: headerTextPrimary }]}>{garageInfo.name}</Text>
             <Text style={[styles.statusText, { color: headerTextSecondary }]}>
-              {isOnline ? 'Active Duty' : 'Offline'} • ID: {mechanicId || '5'} • {garageInfo.ownerName}
+              {isOnline ? 'Online' : 'Offline'} • ID: {mechanicId || '5'} • {garageInfo.ownerName}
             </Text>
           </View>
 
@@ -176,14 +176,26 @@ export default function DashboardScreen() {
               </View>
               <View style={{ marginLeft: 12 }}>
                 <Text style={[styles.gpsTitle, { color: textPrimary }]}>
-                  REAL-TIME GPS TELEMETRY
+                  LIVE LOCATION
                 </Text>
                 <Text style={[styles.gpsCoords, { color: textSecondary }]}>
                   {currentCoords 
                     ? `Lat: ${currentCoords.latitude.toFixed(5)}°  ·  Lon: ${currentCoords.longitude.toFixed(5)}°`
-                    : 'Searching for GPS signal...'
+                    : 'Getting location...'
                   }
                 </Text>
+                {isSocketConnected && (
+                  <View style={{ marginTop: 8, backgroundColor: 'rgba(6, 182, 212, 0.08)', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.2)' }}>
+                    <Text style={{ color: '#06B6D4', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
+                      <Ionicons name="wifi" size={9} color="#06B6D4" /> SENDING LOCATION EVERY 3s
+                    </Text>
+                    <Text style={{ color: textSecondary, fontSize: 9, fontWeight: '600', marginTop: 4, fontFamily: 'monospace' }}>
+                      Endpoint: /app/mechanic/location{'\n'}
+                      Auth: Bearer [JWT Token]{'\n'}
+                      Payload: {`{ userId: ${mechanicId}, lat: ${currentCoords?.latitude.toFixed(4)}, lon: ${currentCoords?.longitude.toFixed(4)} }`}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -215,6 +227,38 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* ACTIVE SERVICE TRACKER BANNER */}
+        {activeJobs.length > 0 && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => router.push({ pathname: '/mechanic/booking-details', params: { id: activeJobs[0].id } })}
+            style={[
+              styles.activeServiceBanner,
+              { 
+                backgroundColor: activeJobs[0].status === 'arrived' ? 'rgba(16, 185, 129, 0.1)' : activeJobs[0].status === 'in_progress' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(6, 182, 212, 0.1)', 
+                borderColor: activeJobs[0].status === 'arrived' ? '#10B981' : activeJobs[0].status === 'in_progress' ? '#3B82F6' : '#06B6D4' 
+              }
+            ]}
+          >
+            <View style={styles.activeServiceHeader}>
+              <View style={styles.activeServiceDotContainer}>
+                <View style={[styles.activeServiceDotOuter, { backgroundColor: activeJobs[0].status === 'arrived' ? 'rgba(16, 185, 129, 0.2)' : activeJobs[0].status === 'in_progress' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(6, 182, 212, 0.2)' }]} />
+                <View style={[styles.activeServiceDotInner, { backgroundColor: activeJobs[0].status === 'arrived' ? '#10B981' : activeJobs[0].status === 'in_progress' ? '#3B82F6' : '#06B6D4' }]} />
+              </View>
+              <Text style={[styles.activeServiceTitle, { color: activeJobs[0].status === 'arrived' ? '#10B981' : activeJobs[0].status === 'in_progress' ? '#3B82F6' : '#06B6D4' }]}>
+                {activeJobs[0].status === 'arrived' ? 'ARRIVED - PENDING BILL' : activeJobs[0].status === 'in_progress' ? 'EN ROUTE TO CUSTOMER' : 'STANDBY FOR DISPATCH'}
+              </Text>
+            </View>
+            <View style={styles.activeServiceBody}>
+              <View>
+                <Text style={[styles.activeServiceVehicle, { color: textPrimary }]}>{activeJobs[0].vehicle}</Text>
+                <Text style={[styles.activeServiceCustomer, { color: textSecondary }]}>{activeJobs[0].customerName}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={textSecondary} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Quick Earnings Dashboard Banner */}
         <TouchableOpacity
           activeOpacity={0.9}
@@ -228,7 +272,7 @@ export default function DashboardScreen() {
           <View style={styles.statsHeader}>
             <View style={styles.statsLabelContainer}>
               <MaterialCommunityIcons name="finance" size={18} color={darkMode ? primaryAccent : '#FFFFFF'} />
-              <Text style={[styles.statsTitle, { color: darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)' }]}>EARNINGS OVERVIEW</Text>
+              <Text style={[styles.statsTitle, { color: darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)' }]}>EARNINGS</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
           </View>
@@ -236,21 +280,21 @@ export default function DashboardScreen() {
           <View style={styles.statsMain}>
             <View>
               <Text style={styles.statsSubVal}>Rs. {monthlyEarnings.toFixed(0)}</Text>
-              <Text style={styles.statsSubLbl}>Monthly Revenue</Text>
+              <Text style={styles.statsSubLbl}>This Month</Text>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
 
             <View>
               <Text style={[styles.statsSubVal, { color: darkMode ? '#10B981' : '#FFFFFF' }]}>+Rs. {dailyEarnings.toFixed(0)}</Text>
-              <Text style={styles.statsSubLbl}>Recent Revenue</Text>
+              <Text style={styles.statsSubLbl}>Today</Text>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
 
             <View>
               <Text style={styles.statsSubVal}>{completedJobsCount}</Text>
-              <Text style={styles.statsSubLbl}>Jobs Closed</Text>
+              <Text style={styles.statsSubLbl}>Completed Jobs</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -262,7 +306,7 @@ export default function DashboardScreen() {
               <View style={styles.sectionAlertDot} />
             )}
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-              {pendingRequests.length > 0 ? 'Incoming Request' : 'Incoming Requests'}
+              {pendingRequests.length > 0 ? 'New Booking' : 'New Bookings'}
             </Text>
           </View>
         </View>
@@ -345,15 +389,15 @@ export default function DashboardScreen() {
             <Ionicons name="eye-off-outline" size={40} color={textSecondary} />
             <Text style={[styles.emptyText, { color: textPrimary }]}>You are Offline</Text>
             <Text style={[styles.emptySub, { color: textSecondary }]}>
-              Go online to receive on-demand roadside requests.
+              Go online to receive new booking requests.
             </Text>
           </View>
         ) : (
           <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <Ionicons name="checkmark-done-circle" size={40} color="#10B981" />
-            <Text style={[styles.emptyText, { color: textPrimary }]}>All Caught Up!</Text>
+            <Text style={[styles.emptyText, { color: textPrimary }]}>No new bookings</Text>
             <Text style={[styles.emptySub, { color: textSecondary }]}>
-              There are no pending service requests to review.
+              You don't have any pending requests right now.
             </Text>
           </View>
         )}
@@ -361,7 +405,7 @@ export default function DashboardScreen() {
         {/* Today's Schedule Section */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-            {"Today's Schedule"} ({activeJobs.length})
+            Active Jobs ({activeJobs.length})
           </Text>
         </View>
 
@@ -376,9 +420,9 @@ export default function DashboardScreen() {
         ) : (
           <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <MaterialCommunityIcons name="calendar-blank" size={32} color={primaryAccent} />
-            <Text style={[styles.emptyText, { color: textPrimary }]}>No Active Services</Text>
+            <Text style={[styles.emptyText, { color: textPrimary }]}>No Active Jobs</Text>
             <Text style={[styles.emptySub, { color: textSecondary }]}>
-              Accept pending requests above to begin diagnostic and service operations.
+              Accept a booking above to start a job.
             </Text>
           </View>
         )}
@@ -528,6 +572,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  activeServiceBanner: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  activeServiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activeServiceDotContainer: {
+    width: 14,
+    height: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  activeServiceDotOuter: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  activeServiceDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeServiceTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  activeServiceBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  activeServiceVehicle: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  activeServiceCustomer: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   pulseContainer: {
     position: 'relative',

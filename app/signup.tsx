@@ -26,20 +26,40 @@ export default function SignupScreen() {
   const primaryAccent = '#7DA0A9';
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(125, 160, 169, 0.12)';
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!name || !shopName || !email || !phone || !password) {
       Alert.alert('Incomplete Form', 'Please fill in all the details to register your garage.');
       return;
     }
 
-    signup(name, email, shopName, phone);
+    const result = await signup(name, email, phone, password, 12.9352, 77.6245, shopName);
 
-    Alert.alert('Garage Registered!', `Welcome to the Apex Network, ${name}. Your garage "${shopName}" is now active.`, [
-      {
-        text: 'Proceed to Dashboard',
-        onPress: () => router.replace('/mechanic/dashboard'),
-      },
-    ]);
+    if (result.success) {
+      Alert.alert('Garage Registered!', `Welcome to the Apex Network, ${name}. Your garage "${shopName}" is now active.`, [
+        {
+          text: 'Proceed to Dashboard',
+          onPress: () => router.replace('/mechanic/dashboard'),
+        },
+      ]);
+    } else {
+      if (result.isOffline) {
+        Alert.alert(
+          'Security Server Offline',
+          'Could not connect to the API server. Entering Simulated Demo Mode.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Enter Demo Mode', 
+              onPress: () => {
+                router.replace('/mechanic/dashboard');
+              } 
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Registration Denied', result.error || 'Failed to establish database connection.');
+      }
+    }
   };
 
   return (

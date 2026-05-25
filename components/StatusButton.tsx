@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface StatusButtonProps {
-  status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'rejected';
+  status: 'pending' | 'accepted' | 'in_progress' | 'arrived' | 'completed' | 'rejected';
   onPress: () => void;
 }
 
@@ -14,21 +14,28 @@ export default function StatusButton({ status, onPress }: StatusButtonProps) {
       case 'accepted':
         return {
           bg: '#06B6D4',
-          text: 'Start Dispatch Navigation',
+          text: 'Start Navigation',
           icon: 'navigation',
           enabled: true,
         };
       case 'in_progress':
         return {
+          bg: '#3B82F6',
+          text: 'View Navigation',
+          icon: 'map-marker-path',
+          enabled: true,
+        };
+      case 'arrived':
+        return {
           bg: '#10B981',
-          text: 'Arrive & Complete Service',
-          icon: 'check-all',
+          text: 'Generate Bill',
+          icon: 'receipt',
           enabled: true,
         };
       case 'completed':
         return {
           bg: 'rgba(16, 185, 129, 0.12)',
-          text: 'Service Completed',
+          text: 'Job Completed',
           icon: 'check-all',
           enabled: false,
           color: '#10B981',
@@ -36,14 +43,14 @@ export default function StatusButton({ status, onPress }: StatusButtonProps) {
       case 'pending':
         return {
           bg: '#F59E0B',
-          text: 'Accept Booking First',
+          text: 'Accept Booking',
           icon: 'alert-decagram-outline',
           enabled: false,
         };
       case 'rejected':
         return {
           bg: 'rgba(239, 68, 68, 0.1)',
-          text: 'Service Declined',
+          text: 'Booking Declined',
           icon: 'close-circle-outline',
           enabled: false,
           color: '#EF4444',
