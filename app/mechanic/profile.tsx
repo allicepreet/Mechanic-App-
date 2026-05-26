@@ -22,66 +22,10 @@ const GARAGE_DOCUMENTS: {
   readonly desc: string;
   readonly fileSize: string;
 }[] = [
-  {
-    id: 'doc1',
-    title: 'ASE Master Technician Certification',
-    category: 'Technical Credential',
-    authority: 'National Automotive Service Excellence',
-    status: 'Verified',
-    icon: 'certificate',
-    color: '#3B82F6',
-    number: 'ASE-8890-TX',
-    issued: 'Dec 2023',
-    expires: 'Dec 2028',
-    desc: 'Gold-standard credential certifying advanced mastery across critical automotive domains, including computerized engine diagnostics, advanced electrical engineering, and hybrid drive systems.',
-    fileSize: '2.4 MB'
-  },
-  {
-    id: 'doc2',
-    title: 'EV & Hybrid Diagnostics Qualification',
-    category: 'Specialized Tech',
-    authority: 'Tesla Advanced Tech Academy',
-    status: 'Verified',
-    icon: 'flash',
-    color: '#10B981',
-    number: 'EV-8842-CA',
-    issued: 'Aug 2024',
-    expires: 'Aug 2029',
-    desc: 'Certified high-voltage operations including complete battery pack diagnostics, thermal management system calibrating, active motor winding analysis, and safety grounding operations.',
-    fileSize: '1.8 MB'
-  },
-  {
-    id: 'doc3',
-    title: 'State Garage Business License',
-    category: 'Regulatory Permit',
-    authority: 'California Bureau of Automotive Repair',
-    status: 'Verified',
-    icon: 'shield',
-    color: '#F59E0B',
-    number: 'BAR-LIC-99320',
-    issued: 'Mar 2024',
-    expires: 'Mar 2027',
-    desc: 'Official active operational garage business license authorizing standard and high-performance repair services, emissions compliance testing, and commercial fleet support.',
-    fileSize: '1.2 MB'
-  },
-  {
-    id: 'doc4',
-    title: 'Commercial General Liability Policy',
-    category: 'Insurance Coverage',
-    authority: 'Liberty Mutual Commercial',
-    status: 'Verified',
-    icon: 'shield-check',
-    color: '#8B5CF6',
-    number: 'LMC-POL-55099',
-    issued: 'Nov 2025',
-    expires: 'Nov 2026',
-    desc: '$2,000,000 comprehensive commercial general liability coverage covering garage operations, on-road test driving liability, and workshop customer protection policies.',
-    fileSize: '3.1 MB'
-  }
 ];
 
 export default function ProfileScreen() {
-  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, updateProfileOnServer, logout, isOnline, setIsOnline } = useMechanic();
+  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, updateProfileOnServer, logout, isOnline, setIsOnline, resetPassword } = useMechanic();
   const insets = useSafeAreaInsets();
 
   const [editMode, setEditMode] = useState(false);
@@ -90,6 +34,10 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState(garageInfo.phone);
   const [address, setAddress] = useState(garageInfo.address);
   const [hours, setHours] = useState(garageInfo.workingHours);
+
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const [selectedDoc, setSelectedDoc] = useState<typeof GARAGE_DOCUMENTS[number] | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -102,6 +50,23 @@ export default function ProfileScreen() {
   const primaryAccent = '#7DA0A9';
 
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!oldPassword || !newPassword) {
+      Alert.alert('Missing Info', 'Please enter both your old and new password.');
+      return;
+    }
+    setIsResettingPassword(true);
+    const res = await resetPassword(oldPassword, newPassword);
+    setIsResettingPassword(false);
+    if (res.success) {
+      Alert.alert('Success', 'Your password has been changed securely.');
+      setOldPassword('');
+      setNewPassword('');
+    } else {
+      Alert.alert('Failed', res.error || 'Failed to change password.');
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -214,14 +179,14 @@ export default function ProfileScreen() {
             onPress={() => router.push('/mechanic/reviews')}
           >
             <View style={styles.ratingRow}>
-              <Text style={styles.counterNum}>4.9</Text>
+              <Text style={styles.counterNum}>--</Text>
               <Ionicons name="star" size={14} color="#F59E0B" style={styles.starIcon} />
             </View>
             <Text style={[styles.counterLabel, { color: textSecondary }]}>Rating Feedback</Text>
           </TouchableOpacity>
 
           <View style={[styles.counterBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Text style={styles.counterNum}>8+</Text>
+            <Text style={styles.counterNum}>--</Text>
             <Text style={[styles.counterLabel, { color: textSecondary }]}>Years Exp</Text>
           </View>
         </View>
@@ -330,6 +295,56 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Security Settings Panel */}
+        <View style={[styles.editorCard, { backgroundColor: cardBg, borderColor: cardBorder, marginTop: 16 }]}>
+          <View style={styles.editorHeader}>
+            <Text style={[styles.sectionTitle, { color: textPrimary }]}>Security & Authentication</Text>
+          </View>
+          <View style={styles.formContainer}>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: textSecondary }]}>CURRENT PASSWORD</Text>
+              <TextInput
+                style={[styles.input, { color: textPrimary, borderColor: cardBorder }]}
+                value={oldPassword}
+                onChangeText={setOldPassword}
+                secureTextEntry
+                placeholder="Enter current password"
+                placeholderTextColor={textSecondary}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: textSecondary }]}>NEW PASSWORD</Text>
+              <TextInput
+                style={[styles.input, { color: textPrimary, borderColor: cardBorder }]}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder="Enter new password"
+                placeholderTextColor={textSecondary}
+              />
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                borderColor: 'rgba(245, 158, 11, 0.4)',
+                borderWidth: 1,
+                paddingVertical: 10,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginTop: 8
+              }}
+              onPress={handleResetPassword}
+              disabled={isResettingPassword}
+            >
+              {isResettingPassword ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <Text style={{ color: '#F59E0B', fontWeight: '800', fontSize: 13 }}>Change Password</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Specialty Filter Badges */}
         <Text style={[styles.sectionTitle, { color: textPrimary, marginLeft: 6, marginBottom: 12, marginTop: 12 }]}>
           Diagnostics & Tuning Specialties
@@ -350,7 +365,7 @@ export default function ProfileScreen() {
           </Text>
           <View style={styles.verifiedCountBadge}>
             <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-            <Text style={styles.verifiedCountText}>4 Active</Text>
+            <Text style={styles.verifiedCountText}>0 Active</Text>
           </View>
         </View>
 

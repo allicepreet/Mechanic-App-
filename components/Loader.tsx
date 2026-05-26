@@ -45,12 +45,12 @@ export default function Loader({ message = 'Loading Systems...', darkMode = true
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
       <View style={styles.gearContainer}>
-        {/* Large Gear */}
+     
         <Animated.View style={{ transform: [{ rotate: spinClockwise }] }}>
           <MaterialCommunityIcons name="cog" size={70} color="#F59E0B" />
         </Animated.View>
 
-        {/* Small Gear nestled next to the large one */}
+      
         <Animated.View style={[styles.smallGear, { transform: [{ rotate: spinCounterClockwise }] }]}>
           <MaterialCommunityIcons name="cog" size={42} color="#10B981" />
         </Animated.View>

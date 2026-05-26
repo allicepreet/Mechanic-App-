@@ -7,6 +7,7 @@ import EarningsCard from '@/components/EarningsCard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BottomNav from '@/components/BottomNav';
 
 export default function EarningsScreen() {
   const {
@@ -16,6 +17,7 @@ export default function EarningsScreen() {
     dailyEarnings,
     monthlyEarnings,
     completedJobsCount,
+    weeklyJobs,
   } = useMechanic();
 
   const insets = useSafeAreaInsets();
@@ -27,20 +29,39 @@ export default function EarningsScreen() {
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
   const primaryAccent = '#7DA0A9';
 
-  // Extract completed bookings as history list
+  
   const completedJobs = bookings.filter((b) => b.status === 'completed');
 
   const [selectedDay, setSelectedDay] = React.useState<number>(4); // Default to Friday
-  const weeklyData = [
-    { day: 'Mon', amount: 340, jobs: 1, date: 'May 18' },
-    { day: 'Tue', amount: 550, jobs: 2, date: 'May 19' },
-    { day: 'Wed', amount: 0, jobs: 0, date: 'May 20' },
-    { day: 'Thu', amount: 720, jobs: 2, date: 'May 21' },
-    { day: 'Fri', amount: 1100, jobs: 3, date: 'May 22' },
-    { day: 'Sat', amount: 890, jobs: 2, date: 'May 23' },
-    { day: 'Sun', amount: 450, jobs: 1, date: 'May 24' },
-  ];
-  const maxWeeklyAmount = 1200;
+  const weeklyData = React.useMemo(() => {
+    if (!weeklyJobs || weeklyJobs.length === 0) {
+      return [
+        { day: 'Mon', amount: 0, jobs: 0, date: 'Monday' },
+        { day: 'Tue', amount: 0, jobs: 0, date: 'Tuesday' },
+        { day: 'Wed', amount: 0, jobs: 0, date: 'Wednesday' },
+        { day: 'Thu', amount: 0, jobs: 0, date: 'Thursday' },
+        { day: 'Fri', amount: 0, jobs: 0, date: 'Friday' },
+        { day: 'Sat', amount: 0, jobs: 0, date: 'Saturday' },
+        { day: 'Sun', amount: 0, jobs: 0, date: 'Sunday' },
+      ];
+    }
+    return weeklyJobs.map((item) => {
+      const dayShort = item.day.substring(0, 3);
+      // Let's estimate amount based on jobs count
+      const estimatedAmt = item.totalJobs * 250;
+      return {
+        day: dayShort,
+        amount: estimatedAmt,
+        jobs: item.totalJobs,
+        date: item.day,
+      };
+    });
+  }, [weeklyJobs]);
+
+  const maxWeeklyAmount = React.useMemo(() => {
+    const maxVal = Math.max(...weeklyData.map(d => d.amount), 0);
+    return maxVal > 0 ? maxVal : 1000;
+  }, [weeklyData]);
 
   const serviceMix = [
     { name: 'Electrical & EV', share: '45%', color: '#06B6D4', count: 9 },
@@ -59,7 +80,7 @@ export default function EarningsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Metric Board */}
+    
         <EarningsCard
           daily={dailyEarnings}
           monthly={monthlyEarnings}
@@ -68,7 +89,6 @@ export default function EarningsScreen() {
           darkMode={darkMode}
         />
 
-        {/* Analytics Center */}
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Performance Analytics</Text>
         <View style={[styles.analyticsCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.analyticsHeader}>
@@ -123,23 +143,28 @@ export default function EarningsScreen() {
           </View>
 
           {/* Interactive Day Inspection Box */}
-          <View style={[styles.chartDetailBox, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)', borderColor: cardBorder }]}>
-            <View style={styles.chartDetailRow}>
-              <Text style={[styles.chartDetailLabel, { color: textSecondary }]}>DATE: {weeklyData[selectedDay].date}</Text>
-              <Text style={[styles.chartDetailValue, { color: textPrimary }]}>{weeklyData[selectedDay].day}</Text>
-            </View>
-            <View style={[styles.chartDetailDivider, { backgroundColor: cardBorder }]} />
-            <View style={styles.chartDetailRow}>
-              <View>
-                <Text style={[styles.chartDetailAmt, { color: '#10B981' }]}>Rs. {weeklyData[selectedDay].amount}</Text>
-                <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Daily Revenue</Text>
+          {(() => {
+            const activeDayData = weeklyData[selectedDay] || weeklyData[0] || { day: 'N/A', amount: 0, jobs: 0, date: 'N/A' };
+            return (
+              <View style={[styles.chartDetailBox, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)', borderColor: cardBorder }]}>
+                <View style={styles.chartDetailRow}>
+                  <Text style={[styles.chartDetailLabel, { color: textSecondary }]}>DATE: {activeDayData.date}</Text>
+                  <Text style={[styles.chartDetailValue, { color: textPrimary }]}>{activeDayData.day}</Text>
+                </View>
+                <View style={[styles.chartDetailDivider, { backgroundColor: cardBorder }]} />
+                <View style={styles.chartDetailRow}>
+                  <View>
+                    <Text style={[styles.chartDetailAmt, { color: '#10B981' }]}>Rs. {activeDayData.amount}</Text>
+                    <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Daily Revenue</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[styles.chartDetailJobs, { color: textPrimary }]}>{activeDayData.jobs} Jobs</Text>
+                    <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Repair Sessions</Text>
+                  </View>
+                </View>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.chartDetailJobs, { color: textPrimary }]}>{weeklyData[selectedDay].jobs} Jobs</Text>
-                <Text style={[styles.chartDetailSub, { color: textSecondary }]}>Repair Sessions</Text>
-              </View>
-            </View>
-          </View>
+            );
+          })()}
 
           {/* Service Proportions Breakdown */}
           <View style={[styles.chartDetailDivider, { backgroundColor: cardBorder, marginVertical: 16 }]} />
@@ -239,37 +264,7 @@ export default function EarningsScreen() {
       </ScrollView>
 
       {/* Reusable Premium Floating Bottom Navigation Bar */}
-      <View style={[styles.navbarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={[styles.navbar, darkMode ? styles.navbarDark : styles.navbarLight]}>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/dashboard')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="speedometer" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Dashboard</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/bookings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="construct" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Bookings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-            <View style={[styles.activeTabHighlight, { backgroundColor: darkMode ? 'rgba(125, 160, 169, 0.15)' : 'rgba(125, 160, 169, 0.12)' }]}>
-              <Ionicons name="cash" size={20} color={primaryAccent} />
-            </View>
-            <Text style={[styles.navTextActive, { color: primaryAccent }]}>Earnings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.replace('/mechanic/profile')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="person" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNav />
     </View>
   );
 }

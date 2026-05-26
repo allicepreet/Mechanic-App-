@@ -25,7 +25,7 @@ export default function BookingCard({
   const textSecondary = darkMode ? '#9BA1A6' : '#64748B';
   const cardBorder = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
 
-  // Determine status color codes
+  
   const getStatusColor = (status: Booking['status']) => {
     switch (status) {
       case 'pending':
@@ -57,7 +57,7 @@ export default function BookingCard({
 
   const cardContent = (
     <>
-      {/* Sleek Digital Service Ticket HUD Banner */}
+      
       <View style={[styles.telemetryHUD, { backgroundColor: darkMode ? '#0F172A' : '#F8FAFC', borderColor: cardBorder }]}>
         <View style={styles.hudTopRow}>
           <View style={styles.hudPulseRow}>
@@ -220,7 +220,7 @@ export default function BookingCard({
       {cardContent}
 
       {/* Informative footer for active/in-progress items */}
-      {(booking.status === 'accepted' || booking.status === 'in_progress') && (
+      {(booking.status === 'accepted' || booking.status === 'in_progress' || booking.status === 'arrived') && (
         <View style={[styles.activeActionsBlock, { borderTopColor: cardBorder }]}>
           <View style={styles.activeDetailsRow}>
             <Ionicons name="location-sharp" size={15} color="#EF4444" style={{ marginRight: 6 }} />
@@ -234,50 +234,60 @@ export default function BookingCard({
             </Text>
           )}
 
-          <TouchableOpacity
-            style={[styles.gpsNavigateBtn, { backgroundColor: booking.status === 'accepted' ? '#06B6D4' : '#3B82F6' }]}
-            onPress={(e) => {
-              e.stopPropagation(); // prevent card click navigation
-              
-              const alertMsg = `Departing mobile dispatch hub!\n\nRouting turn-by-turn directions to client's stranded vehicle:\n\nLocation: ${booking.location}\n\nDistance: ${booking.distance || '3.5 km'} | ETA: ${booking.eta || '10 mins'}\n\nDominic T. is en route in the mobile tuning van!`;
-              
-              if (Platform.OS === 'web') {
-                window.alert(`Simulated GPS Routing Active\n\n${alertMsg}`);
-                if (booking.status === 'accepted') {
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            {booking.status === 'accepted' && (
+              <TouchableOpacity
+                style={[styles.gpsNavigateBtn, { flex: 1, backgroundColor: '#06B6D4' }]}
+                onPress={(e) => {
+                  e.stopPropagation();
                   updateBookingStatus(booking.id, 'in_progress');
-                }
-                router.push({
-                  pathname: '/mechanic/navigation',
-                  params: { id: booking.id },
-                });
-              } else {
-                Alert.alert(
-                  'Simulated GPS Routing Active',
-                  alertMsg,
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        if (booking.status === 'accepted') {
-                          updateBookingStatus(booking.id, 'in_progress');
-                        }
-                        router.push({
-                          pathname: '/mechanic/navigation',
-                          params: { id: booking.id },
-                        });
-                      },
-                      style: 'default',
-                    },
-                  ]
-                );
-              }
-            }}
-          >
-            <Ionicons name="navigate-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.gpsNavigateBtnText}>
-              {booking.status === 'accepted' ? 'Start Dispatch Navigation' : 'Continue Trip Navigation'}
-            </Text>
-          </TouchableOpacity>
+                  router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } });
+                }}
+              >
+                <Ionicons name="navigate-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.gpsNavigateBtnText}>Start Navigation</Text>
+              </TouchableOpacity>
+            )}
+
+            {booking.status === 'in_progress' && (
+              <>
+                <TouchableOpacity
+                  style={[styles.gpsNavigateBtn, { flex: 1, backgroundColor: '#3B82F6' }]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } });
+                  }}
+                >
+                  <Ionicons name="map" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.gpsNavigateBtnText}>Map</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.gpsNavigateBtn, { flex: 1.5, backgroundColor: '#10B981' }]}
+                  onPress={async (e) => {
+                    e.stopPropagation();
+                    await updateBookingStatus(booking.id, 'arrived');
+                  }}
+                >
+                  <Ionicons name="pin" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.gpsNavigateBtnText}>Mark Arrived</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {booking.status === 'arrived' && (
+              <TouchableOpacity
+                style={[styles.gpsNavigateBtn, { flex: 1, backgroundColor: '#10B981' }]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  router.push({ pathname: '/mechanic/booking-details', params: { id: booking.id } });
+                }}
+              >
+                <Ionicons name="receipt" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.gpsNavigateBtnText}>Generate Bill</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
     </TouchableOpacity>

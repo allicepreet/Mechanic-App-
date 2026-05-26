@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Animated, Easing, Platform, Dimensions, ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, AlertButton } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Animated, Easing, Platform, Dimensions, ActivityIndicator, Alert, KeyboardAvoidingView, ScrollView, AlertButton, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -173,8 +173,33 @@ export default function RegisterScreen() {
     console.log('--- [FRONTEND CLICK] INITIALIZE TERMINAL CONN pressed ---');
     console.log('Form Inputs Captured:', { name, email, phone, password: password ? 'PROVIDED' : 'BLANK', shopName, lat, lng });
 
-    if (!name || !email || !phone || !password) {
-      showAlert('Details Incomplete', 'Please fill in all security fields.');
+    if (!name.trim()) {
+      showAlert('Details Incomplete', 'Please enter your full name.');
+      return;
+    }
+    if (!email.trim()) {
+      showAlert('Details Incomplete', 'Please enter your email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      showAlert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    if (!phone.trim()) {
+      showAlert('Details Incomplete', 'Please enter your phone number.');
+      return;
+    }
+    if (phone.replace(/[^0-9]/g, '').length < 10) {
+      showAlert('Invalid Phone', 'Please enter a valid phone number with at least 10 digits.');
+      return;
+    }
+    if (!password) {
+      showAlert('Details Incomplete', 'Please enter a security keycode.');
+      return;
+    }
+    if (password.length < 6) {
+      showAlert('Weak Keycode', 'Security keycode must be at least 6 characters long.');
       return;
     }
 
@@ -239,12 +264,20 @@ export default function RegisterScreen() {
     outputRange: ['0deg', '360deg'],
   });
 
+  const isDark = darkMode;
+  const bgColor = isDark ? '#0B0F19' : '#FFFFFF';
+  const textColor = isDark ? '#FFFFFF' : '#1E293B';
+  const panelColor = isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+  const inputBg = isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)';
+  const inputBorder = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0, 0, 0, 0.05)';
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: bgColor }]}
     >
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? "light" : "dark"} />
 
       <ScrollView
         contentContainerStyle={[styles.scrollContainer, { paddingTop: Math.max(insets.top, 20) }]}
@@ -253,70 +286,40 @@ export default function RegisterScreen() {
       >
         {/* Tech Logo & Telemetry Banner */}
         <View style={styles.headerBlock}>
-          <Text style={styles.brandText}>
+          <Text style={[styles.brandText, { color: textColor }]}>
             apex<Text style={{ color: neonGreen }}>.</Text>
           </Text>
           <Text style={styles.mainframeSub}>SECURE TECHNICIAN PORTAL // VER. 5.4.0</Text>
         </View>
 
-        {/* Dynamic meshed gears with rotating mechanical telemetry */}
+        {/* Cute Mechanic Animation */}
         <View style={styles.telemetryHub}>
-          <Animated.View style={[styles.outerRingContainer, { transform: [{ translateY: floatAnim }] }]}>
-            {/* Outer large mechanical cog rotating clockwise */}
-            <Animated.View
-              style={[
-                styles.gearOuter,
-                { transform: [{ rotate: rotation }] }
-              ]}
-            >
-              <MaterialCommunityIcons name="cog-outline" size={135} color="rgba(0, 230, 118, 0.3)" />
-            </Animated.View>
-
-            {/* Inner secondary mechanical cog rotating counter-clockwise */}
-            <Animated.View
-              style={[
-                styles.gearInner,
-                { transform: [{ rotate: rotationCounter }] }
-              ]}
-            >
-              <MaterialCommunityIcons name="cog" size={95} color="rgba(6, 182, 212, 0.12)" />
-            </Animated.View>
-
-            {/* Central Glowing Wrench Core */}
-            <View style={styles.innerShieldRing}>
-              <MaterialCommunityIcons 
-                name="wrench" 
-                size={40} 
-                color={neonGreen} 
-                style={{
-                  textShadowColor: neonGreen,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 8,
-                }} 
-              />
-            </View>
-            
-            {/* HUD Coordinate indicators */}
-            <View style={[styles.hudCoordBadge, { top: -14, left: -42 }]}>
-              <Text style={styles.hudCoordText}>LAT: {lat}</Text>
-            </View>
-            <View style={[styles.hudCoordBadge, { bottom: -14, right: -42 }]}>
-              <Text style={[styles.hudCoordText, { color: neonCyan }]}>LNG: {lng}</Text>
-            </View>
+          <Animated.View style={[
+            { transform: [{ translateY: floatAnim }] },
+            { alignItems: 'center', justifyContent: 'center' }
+          ]}>
+            <Image 
+              source={require('@/assets/images/cute-mechanic.png')} 
+              style={{ width: 180, height: 180, resizeMode: 'contain' }} 
+            />
           </Animated.View>
         </View>
 
         {/* Main Terminal Form */}
-        <View style={styles.terminalPanel}>
-          <Text style={styles.terminalTitle}>TECH REGISTRATION</Text>
+        <View style={[styles.terminalPanel, { backgroundColor: panelColor, borderColor: borderColor }]}>
+          <Text style={[styles.terminalTitle, { color: textColor }]}>TECH REGISTRATION</Text>
 
           {/* Full Name */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>FULL NAME</Text>
-            <View style={[styles.inputWrapper, isFocused.name && styles.inputWrapperFocused]}>
+            <View style={[
+                styles.inputWrapper, 
+                isFocused.name && styles.inputWrapperFocused,
+                { backgroundColor: inputBg, borderColor: isFocused.name ? neonGreen : inputBorder }
+              ]}>
               <Ionicons name="person-outline" size={18} color={isFocused.name ? neonGreen : '#94A3B8'} style={styles.fieldIcon} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: textColor }]}
                 placeholder="Dominic Toretto"
                 placeholderTextColor="#64748B"
                 value={name}
@@ -330,10 +333,14 @@ export default function RegisterScreen() {
           {/* Email Address */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
-            <View style={[styles.inputWrapper, isFocused.email && styles.inputWrapperFocused]}>
+            <View style={[
+                styles.inputWrapper, 
+                isFocused.email && styles.inputWrapperFocused,
+                { backgroundColor: inputBg, borderColor: isFocused.email ? neonGreen : inputBorder }
+              ]}>
               <Ionicons name="mail-outline" size={18} color={isFocused.email ? neonGreen : '#94A3B8'} style={styles.fieldIcon} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: textColor }]}
                 placeholder="dominic@apex.com"
                 placeholderTextColor="#64748B"
                 value={email}
@@ -349,10 +356,14 @@ export default function RegisterScreen() {
           {/* Phone Number */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>PHONE NUMBER</Text>
-            <View style={[styles.inputWrapper, isFocused.phone && styles.inputWrapperFocused]}>
+            <View style={[
+                styles.inputWrapper, 
+                isFocused.phone && styles.inputWrapperFocused,
+                { backgroundColor: inputBg, borderColor: isFocused.phone ? neonGreen : inputBorder }
+              ]}>
               <Ionicons name="call-outline" size={18} color={isFocused.phone ? neonGreen : '#94A3B8'} style={styles.fieldIcon} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: textColor }]}
                 placeholder="+1 (555) 999-8800"
                 placeholderTextColor="#64748B"
                 value={phone}
@@ -367,10 +378,14 @@ export default function RegisterScreen() {
           {/* Shop Name (Optional display attribute) */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>SHOP / GARAGE NAME (OPTIONAL)</Text>
-            <View style={[styles.inputWrapper, isFocused.shop && styles.inputWrapperFocused]}>
+            <View style={[
+                styles.inputWrapper, 
+                isFocused.shop && styles.inputWrapperFocused,
+                { backgroundColor: inputBg, borderColor: isFocused.shop ? neonGreen : inputBorder }
+              ]}>
               <Ionicons name="storefront-outline" size={18} color={isFocused.shop ? neonGreen : '#94A3B8'} style={styles.fieldIcon} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: textColor }]}
                 placeholder="Toretto's Performance Shop"
                 placeholderTextColor="#64748B"
                 value={shopName}
@@ -384,10 +399,14 @@ export default function RegisterScreen() {
           {/* Password */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>SECURITY KEYCODE</Text>
-            <View style={[styles.inputWrapper, isFocused.password && styles.inputWrapperFocused]}>
+            <View style={[
+                styles.inputWrapper, 
+                isFocused.password && styles.inputWrapperFocused,
+                { backgroundColor: inputBg, borderColor: isFocused.password ? neonGreen : inputBorder }
+              ]}>
               <Ionicons name="lock-closed-outline" size={18} color={isFocused.password ? neonGreen : '#94A3B8'} style={styles.fieldIcon} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: textColor }]}
                 placeholder="••••••••"
                 placeholderTextColor="#64748B"
                 value={password}
@@ -437,7 +456,7 @@ export default function RegisterScreen() {
               <View style={styles.coordField}>
                 <Text style={styles.coordLabel}>LATITUDE</Text>
                 <TextInput
-                  style={styles.coordInput}
+                  style={[styles.coordInput, { color: textColor, backgroundColor: inputBg, borderColor: inputBorder }]}
                   keyboardType="numeric"
                   placeholder="30.2672"
                   placeholderTextColor="#64748B"
@@ -448,7 +467,7 @@ export default function RegisterScreen() {
               <View style={styles.coordField}>
                 <Text style={styles.coordLabel}>LONGITUDE</Text>
                 <TextInput
-                  style={styles.coordInput}
+                  style={[styles.coordInput, { color: textColor, backgroundColor: inputBg, borderColor: inputBorder }]}
                   keyboardType="numeric"
                   placeholder="-97.7431"
                   placeholderTextColor="#64748B"

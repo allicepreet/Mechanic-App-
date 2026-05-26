@@ -106,10 +106,10 @@ export default function BookingDetailsScreen() {
         Platform.OS === 'web' ? window.alert('Error: Failed to update booking status.') : Alert.alert('Error', 'Failed to update booking status.');
       }
     } else if (booking.status === 'in_progress') {
-      // In progress means navigating. The button says 'View Navigation' now.
+      
       router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } });
     } else if (booking.status === 'arrived') {
-      // Arrived means time to enter bill details.
+  
       setShowBillModal(true);
     }
   };
@@ -120,7 +120,7 @@ export default function BookingDetailsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Telemetry Route Banner */}
+       
         <View style={[styles.telemetryCenter, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.tcHeader}>
             <View style={styles.tcHeaderLeft}>
@@ -265,20 +265,20 @@ export default function BookingDetailsScreen() {
             <View style={styles.billDivider} />
             <View style={styles.billRow}>
               <Text style={[styles.billLabel, { color: textSecondary }]}>Service Fee</Text>
-              <Text style={[styles.billValue, { color: textPrimary }]}>$120.00</Text>
+              <Text style={[styles.billValue, { color: textPrimary }]}>Rs. {booking.price?.toFixed(2) || '0.00'}</Text>
             </View>
             <View style={styles.billRow}>
               <Text style={[styles.billLabel, { color: textSecondary }]}>Parts Cost</Text>
-              <Text style={[styles.billValue, { color: textPrimary }]}>$0.00</Text>
+              <Text style={[styles.billValue, { color: textPrimary }]}>Rs. 0.00</Text>
             </View>
             <View style={styles.billRow}>
               <Text style={[styles.billLabel, { color: textSecondary }]}>Extra Charges</Text>
-              <Text style={[styles.billValue, { color: textPrimary }]}>$0.00</Text>
+              <Text style={[styles.billValue, { color: textPrimary }]}>Rs. 0.00</Text>
             </View>
             <View style={styles.billDividerDashed} />
             <View style={styles.billRow}>
               <Text style={[styles.billTotalLabel, { color: textPrimary }]}>Total</Text>
-              <Text style={[styles.billTotalValue, { color: '#10B981' }]}>$120.00</Text>
+              <Text style={[styles.billTotalValue, { color: '#10B981' }]}>Rs. {booking.price?.toFixed(2) || '0.00'}</Text>
             </View>
             <Text style={[styles.billFooter, { color: textSecondary }]}>
               Billing Details: General Service.{'\n'}

@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
-import BottomNav from '@/components/BottomNav';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, RefreshControl } from 'react-native';
-import { router } from 'expo-router';
-import { useMechanic, Booking } from '@/components/MechanicContext';
 import BookingCard from '@/components/BookingCard';
+import BottomNav from '@/components/BottomNav';
 import Header from '@/components/Header';
+import { useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type FilterType = 'all' | 'pending' | 'active' | 'completed';
@@ -41,26 +40,26 @@ export default function BookingsScreen() {
     if (activeFilter === 'pending') return b.status === 'pending';
     if (activeFilter === 'active') return b.status === 'accepted' || b.status === 'in_progress';
     if (activeFilter === 'completed') return b.status === 'completed';
-    return true; 
+    return true;
   });
 
   return (
     <View style={[styles.container, { backgroundColor: activeBg }]}>
-      
+
       <Header title="Bookings" showBack={false} darkMode={darkMode} />
 
-      
+
       <View style={[styles.filterBar, { borderBottomColor: cardBorder }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
           <TouchableOpacity
             style={[
               styles.filterTab,
-              activeFilter === 'pending' && styles.filterTabActive,
-              activeFilter === 'pending' && { borderBottomColor: primaryAccent },
+              { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+              activeFilter === 'pending' && { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)' },
             ]}
             onPress={() => setActiveFilter('pending')}
           >
-            <Text style={[styles.filterText, activeFilter === 'pending' ? [styles.filterTextActive, { color: primaryAccent }] : { color: textSecondary }]}>
+            <Text style={[styles.filterText, { color: activeFilter === 'pending' ? '#F59E0B' : textSecondary }]}>
               Pending ({pendingCount})
             </Text>
           </TouchableOpacity>
@@ -68,12 +67,12 @@ export default function BookingsScreen() {
           <TouchableOpacity
             style={[
               styles.filterTab,
-              activeFilter === 'active' && styles.filterTabActive,
-              activeFilter === 'active' && { borderBottomColor: '#06B6D4' },
+              { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+              activeFilter === 'active' && { backgroundColor: 'rgba(6, 182, 212, 0.15)', borderColor: 'rgba(6, 182, 212, 0.4)' },
             ]}
             onPress={() => setActiveFilter('active')}
           >
-            <Text style={[styles.filterText, activeFilter === 'active' ? styles.filterTextActive : { color: textSecondary }]}>
+            <Text style={[styles.filterText, { color: activeFilter === 'active' ? '#06B6D4' : textSecondary }]}>
               Active ({activeCount})
             </Text>
           </TouchableOpacity>
@@ -81,12 +80,12 @@ export default function BookingsScreen() {
           <TouchableOpacity
             style={[
               styles.filterTab,
-              activeFilter === 'completed' && styles.filterTabActive,
-              activeFilter === 'completed' && { borderBottomColor: '#10B981' },
+              { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+              activeFilter === 'completed' && { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.4)' },
             ]}
             onPress={() => setActiveFilter('completed')}
           >
-            <Text style={[styles.filterText, activeFilter === 'completed' ? styles.filterTextActive : { color: textSecondary }]}>
+            <Text style={[styles.filterText, { color: activeFilter === 'completed' ? '#10B981' : textSecondary }]}>
               Completed ({completedCount})
             </Text>
           </TouchableOpacity>
@@ -94,25 +93,25 @@ export default function BookingsScreen() {
           <TouchableOpacity
             style={[
               styles.filterTab,
-              activeFilter === 'all' && styles.filterTabActive,
-              activeFilter === 'all' && { borderBottomColor: textPrimary },
+              { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+              activeFilter === 'all' && { backgroundColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderColor: textPrimary },
             ]}
             onPress={() => setActiveFilter('all')}
           >
-            <Text style={[styles.filterText, activeFilter === 'all' ? [styles.filterTextActive, { color: textPrimary }] : { color: textSecondary }]}>
+            <Text style={[styles.filterText, { color: activeFilter === 'all' ? textPrimary : textSecondary }]}>
               All Jobs ({bookings.length})
             </Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
 
-      
+
       <ScrollView
         contentContainerStyle={[styles.listContainer, { paddingBottom: 110 }]}
         showsVerticalScrollIndicator={false}
       >
         {filteredBookings.length > 0 ? (
-          filteredBookings.map((booking) => (
+          (activeFilter === 'pending' || activeFilter === 'active' ? filteredBookings.slice(0, 1) : filteredBookings).map((booking) => (
             <BookingCard
               key={booking.id}
               booking={booking}
@@ -122,34 +121,39 @@ export default function BookingsScreen() {
             />
           ))
         ) : (
-          <View style={[styles.emptyState, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Ionicons
-              name={
-                activeFilter === 'pending'
-                  ? 'checkmark-done-circle'
-                  : activeFilter === 'active'
-                  ? 'construct-outline'
-                  : 'calendar-outline'
-              }
-              size={48}
-              color={activeFilter === 'pending' ? '#10B981' : activeFilter === 'active' ? '#06B6D4' : textSecondary}
-              style={styles.emptyIcon}
-            />
+          <View style={[styles.emptyState, { backgroundColor: darkMode ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.6)', borderColor: cardBorder }]}>
+            <View style={{ padding: 20, borderRadius: 40, backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', marginBottom: 20 }}>
+              <Ionicons
+                name={
+                  activeFilter === 'pending'
+                    ? 'time-outline'
+                    : activeFilter === 'active'
+                      ? 'construct-outline'
+                      : activeFilter === 'completed'
+                        ? 'checkmark-done-circle-outline'
+                        : 'calendar-outline'
+                }
+                size={54}
+                color={activeFilter === 'pending' ? '#F59E0B' : activeFilter === 'active' ? '#06B6D4' : activeFilter === 'completed' ? '#10B981' : textSecondary}
+              />
+            </View>
             <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-              No {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Bookings
+              {activeFilter === 'all' ? 'No Bookings' : `No ${activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Bookings`}
             </Text>
             <Text style={[styles.emptyMessage, { color: textSecondary }]}>
               {activeFilter === 'pending'
                 ? 'You have no pending requests right now.'
                 : activeFilter === 'active'
-                ? 'No active jobs scheduled for today.'
-                : 'No completed jobs found.'}
+                  ? 'No active jobs scheduled for today.'
+                  : activeFilter === 'completed'
+                    ? 'No completed jobs found.'
+                    : 'You currently have no bookings in your history.'}
             </Text>
           </View>
         )}
       </ScrollView>
 
-      
+
       <BottomNav />
     </View>
   );
@@ -160,26 +164,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filterBar: {
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
   filterScroll: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   filterTab: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  filterTabActive: {
-    borderBottomWidth: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterText: {
     fontSize: 13,
     fontWeight: '700',
-  },
-  filterTextActive: {
-    color: '#F59E0B',
   },
   listContainer: {
     padding: 16,
@@ -205,66 +208,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 18,
-  },
-  navbarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  navbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: 68,
-    borderRadius: 28,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 8,
-    paddingHorizontal: 8,
-  },
-  navbarDark: {
-    backgroundColor: 'rgba(30, 41, 59, 0.94)',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  navbarLight: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    borderColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  navItem: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    flex: 1,
-    height: '100%',
-  },
-  navText: {
-    fontSize: 9,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  navTextActive: {
-    fontSize: 9,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  activeTabHighlight: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  inactiveTabIcon: {
-    width: 38,
-    height: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
   },
 });

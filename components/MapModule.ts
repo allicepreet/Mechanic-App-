@@ -1,5 +1,18 @@
-export const MapView: any = null;
-export const Marker: any = null;
-export const Polyline: any = null;
-export const PROVIDER_GOOGLE: any = null;
-export const UrlTile: any = null;
+import { Platform } from 'react-native';
+
+let MapView: any = null;
+let Marker: any = null;
+let Polyline: any = null;
+let PROVIDER_GOOGLE: any = null;
+let UrlTile: any = null;
+
+if (Platform.OS !== 'web') {
+  const RNMaps = require('react-native-maps');
+  MapView = RNMaps.default;
+  Marker = RNMaps.Marker;
+  Polyline = RNMaps.Polyline;
+  PROVIDER_GOOGLE = RNMaps.PROVIDER_GOOGLE;
+  UrlTile = RNMaps.UrlTile;
+}
+
+export { MapView, Marker, Polyline, PROVIDER_GOOGLE, UrlTile };

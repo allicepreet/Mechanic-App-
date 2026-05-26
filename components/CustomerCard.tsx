@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import { useMechanic } from '@/components/MechanicContext';
 
 interface CustomerCardProps {
   name: string;
@@ -21,6 +23,10 @@ export default function CustomerCard({
   darkMode = true,
   bookingId,
 }: CustomerCardProps) {
+  const { sendLocationToCustomer, bookings } = useMechanic();
+  const booking = bookings.find((b) => String(b.id) === String(bookingId));
+  const isBooked = booking ? ['accepted', 'in_progress', 'arrived'].includes(booking.status) : false;
+
   const cardBg = darkMode ? '#1E2022' : '#FFFFFF';
   const textPrimary = darkMode ? '#ECEDEE' : '#0F172A';
   const textSecondary = darkMode ? '#9BA1A6' : '#64748B';
@@ -75,6 +81,35 @@ export default function CustomerCard({
     }
   };
 
+  const handleSendLocation = async () => {
+    if (!bookingId) {
+      Platform.OS === 'web' 
+        ? window.alert('Error: No active booking found to send location.') 
+        : Alert.alert('Error', 'No active booking found to send location.');
+      return;
+    }
+
+    try {
+      const result = await sendLocationToCustomer(bookingId);
+      if (result.success) {
+        const msg = result.isOffline 
+          ? `Live Location Simulation:\n\nMechanic location successfully broadcasted over WS channel to Customer.\n\nEndpoint: /app/mechanic/location`
+          : `Live Location broadcasted successfully to Customer!\n\nEndpoint: /app/mechanic/location`;
+        
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Location Shared', msg);
+      } else {
+        Platform.OS === 'web' 
+          ? window.alert(`Failed to send location: ${result.error}`) 
+          : Alert.alert('Error', `Failed to send location: ${result.error}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      Platform.OS === 'web' 
+        ? window.alert(`Failed to send location: ${err?.message || err}`) 
+        : Alert.alert('Error', `Failed to send location: ${err?.message || err}`);
+    }
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}>
       <View style={styles.header}>
@@ -106,6 +141,13 @@ export default function CustomerCard({
           <Text style={styles.navBtnText}>Navigate</Text>
         </TouchableOpacity>
       </View>
+
+      {isBooked && (
+        <TouchableOpacity onPress={handleSendLocation} style={[styles.sendLocationBtn, { backgroundColor: '#F59E0B' }]}>
+          <MaterialCommunityIcons name="map-marker-radius" size={16} color="#FFFFFF" style={styles.btnIcon} />
+          <Text style={styles.sendLocationBtnText}>Send Live Location to Customer</Text>
+        </TouchableOpacity>
+      )}
 
 
       <View style={[styles.locationContainer, { borderTopColor: cardBorder }]}>
@@ -209,5 +251,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 6,
     flex: 1,
+  },
+  sendLocationBtn: {
+    height: 40,
+    borderRadius: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sendLocationBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

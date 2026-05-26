@@ -4,17 +4,17 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AlertButton, Animated, Dimensions, Easing, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AlertButton, Animated, Dimensions, Easing, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Image, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function LoginScreen() {
-  const { login, darkMode } = useMechanic();
+  const { login, forgotPassword, verifyOtp, darkMode } = useMechanic();
   const insets = useSafeAreaInsets();
 
-  const [email, setEmail] = useState('dominic@apex.com');
-  const [password, setPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -23,6 +23,8 @@ export default function LoginScreen() {
 
   // Slide up panel and logo transition animations
   const [showAuthPanel, setShowAuthPanel] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'forgot_email' | 'forgot_otp'>('login');
+  const [otp, setOtp] = useState('');
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const contentFadeAnim = useRef(new Animated.Value(1)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -89,6 +91,7 @@ export default function LoginScreen() {
       }),
     ]).start(() => {
       setShowAuthPanel(false);
+      setAuthMode('login'); // Reset auth mode on close
     });
   };
 
@@ -119,9 +122,24 @@ export default function LoginScreen() {
     console.log('--- [FRONTEND CLICK] Login Button Pressed ---');
     console.log('Inputs Captured:', { email, password: password ? 'PROVIDED' : 'BLANK', isDemo });
 
-    if (!isDemo && (!email || !password)) {
-      showAlert('Details Missing', 'Please enter your email and security code.');
-      return;
+    if (!isDemo) {
+      if (!email.trim()) {
+        showAlert('Details Missing', 'Please enter your email address.');
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        showAlert('Invalid Email', 'Please enter a valid email address.');
+        return;
+      }
+      if (!password) {
+        showAlert('Details Missing', 'Please enter your security code.');
+        return;
+      }
+      if (password.length < 6) {
+        showAlert('Invalid Code', 'Security code must be at least 6 characters long.');
+        return;
+      }
     }
 
     if (isDemo) {
@@ -162,6 +180,41 @@ export default function LoginScreen() {
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!email) {
+      showAlert('Error', 'Please enter your email address.');
+      return;
+    }
+    setIsLoading(true);
+    const res = await forgotPassword(email);
+    setIsLoading(false);
+
+    if (res.success) {
+      showAlert('OTP Sent', 'Check your email for the verification code.');
+      setAuthMode('forgot_otp');
+    } else {
+      showAlert('Failed', res.error || 'Failed to send OTP.');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp) {
+      showAlert('Error', 'Please enter the OTP.');
+      return;
+    }
+    setIsLoading(true);
+    const res = await verifyOtp(email, otp);
+    setIsLoading(false);
+
+    if (res.success) {
+      showAlert('Success', 'OTP verified successfully. Please contact admin to issue your new password, or login with temporary credentials if provided.', [{
+        text: 'OK', onPress: () => setAuthMode('login')
+      }]);
+    } else {
+      showAlert('Failed', res.error || 'Invalid OTP.');
+    }
+  };
+
   // Interpolations for meshing rotating cogs (opposite directions!)
   const rotation = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
@@ -173,68 +226,40 @@ export default function LoginScreen() {
     default: 'serif',
   });
 
+  const isDark = darkMode;
+  const bgColor = isDark ? '#0B0F19' : '#FFFFFF';
+  const textColor = isDark ? '#FFFFFF' : '#1E293B';
+  const panelColor = isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={[styles.container, { backgroundColor: bgColor }]}
+    >
+      <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Main Screen Content Layer */}
       <Animated.View style={[styles.mainLayout, { opacity: contentFadeAnim }]}>
         {/* Brand Logo Header */}
         <View style={[styles.brandHeader, { paddingTop: Math.max(insets.top, 24) }]}>
-          <Text style={styles.brandText}>
+          <Text style={[styles.brandText, { color: textColor }]}>
             apex<Text style={{ color: neonGreen }}>.</Text>
           </Text>
         </View>
 
-        {/* Floating Mainframe Gear / Wrench Mechanical Graphics */}
+        {/* Cute Mechanic Animation */}
         <View style={styles.vehicleContainer}>
           <Animated.View
             style={[
-              styles.mainframeNode,
-              { transform: [{ translateY: floatAnim }] }
+              { transform: [{ translateY: floatAnim }] },
+              { alignItems: 'center', justifyContent: 'center' }
             ]}
           >
-            {/* Outer large gear rotating clockwise */}
-            <Animated.View
-              style={[
-                styles.gearOuter,
-                { transform: [{ rotate: rotation }] }
-              ]}
-            >
-              <MaterialCommunityIcons name="cog-outline" size={210} color="rgba(0, 230, 118, 0.28)" />
-            </Animated.View>
-
-            {/* Inner secondary gear rotating counter-clockwise */}
-            <Animated.View
-              style={[
-                styles.gearInner,
-                { transform: [{ rotate: rotationCounter }] }
-              ]}
-            >
-              <MaterialCommunityIcons name="cog" size={150} color="rgba(6, 182, 212, 0.12)" />
-            </Animated.View>
-
-            {/* Glowing Wrench Core inside a solid metal shield ring */}
-            <View style={styles.innerRing}>
-              <MaterialCommunityIcons
-                name="wrench"
-                size={52}
-                color={neonGreen}
-                style={{
-                  textShadowColor: neonGreen,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 8,
-                }}
-              />
-            </View>
-
-            {/* Micro HUD status readouts floating on mechanics workspace */}
-            <View style={[styles.microHudBadge, { top: -22, left: -42 }]}>
-              <Text style={styles.microHudText}>DIAG.SYS // ACTIVE</Text>
-            </View>
-            <View style={[styles.microHudBadge, { bottom: -22, right: -42 }]}>
-              <Text style={[styles.microHudText, { color: '#06B6D4' }]}>RPM.TUNE // 7200</Text>
-            </View>
+            <Image 
+              source={require('@/assets/images/cute-mechanic.png')} 
+              style={{ width: 220, height: 220, resizeMode: 'contain' }} 
+            />
           </Animated.View>
         </View>
 
@@ -242,7 +267,7 @@ export default function LoginScreen() {
         <View style={styles.titleBlock}>
           <Text style={styles.trackedSubText}>DIAGNOSE AND TUNE</Text>
           <View style={styles.serifRow}>
-            <Text style={styles.mainSerifTitle}>instant</Text>
+            <Text style={[styles.mainSerifTitle, { color: textColor }]}>instant</Text>
             <Text style={[styles.scriptOverlapText, { fontFamily: scriptFont }]}>
               dispatch
             </Text>
@@ -277,142 +302,274 @@ export default function LoginScreen() {
       <Animated.View
         style={[
           styles.authPanelContainer,
-          { transform: [{ translateY: slideAnim }] }
+          { 
+            backgroundColor: panelColor,
+            borderColor: borderColor,
+            transform: [{ translateY: slideAnim }] 
+          }
         ]}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={[styles.keyboardContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}
+        <ScrollView
+          contentContainerStyle={[styles.keyboardContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.dragHandle} />
 
           <View style={styles.authHeaderBlock}>
             <View style={styles.authLogoBadge}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={24} color={neonGreen} />
+              <MaterialCommunityIcons 
+                name={authMode === 'login' ? 'shield-lock-outline' : 'email-lock-outline'} 
+                size={24} 
+                color={neonGreen} 
+              />
             </View>
-            <Text style={styles.authTitle}>Technician Credentials</Text>
+            <Text style={[styles.authTitle, { color: textColor }]}>
+              {authMode === 'login' ? 'Technician Credentials' : 'Password Recovery'}
+            </Text>
             <Text style={styles.authSubtitle}>
-              Authorize terminal connection to access the active dispatch board
+              {authMode === 'login' 
+                ? 'Authorize terminal connection to access the active dispatch board'
+                : authMode === 'forgot_email' 
+                  ? 'Enter your registered email address to receive a one-time passcode.'
+                  : 'Enter the verification code sent to your email.'}
             </Text>
           </View>
 
-          {/* Email Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                isEmailFocused && styles.inputWrapperFocused
-              ]}
-            >
-              <Ionicons
-                name="mail-outline"
-                size={18}
-                color={isEmailFocused ? neonGreen : '#94A3B8'}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.textInput}
-                placeholder="dominic@apex.com"
-                placeholderTextColor="#64748B"
-                value={email}
-                onChangeText={setEmail}
-                onFocus={() => setIsEmailFocused(true)}
-                onBlur={() => setIsEmailFocused(false)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
+          {authMode === 'login' && (
+            <>
+              {/* Email Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isEmailFocused && styles.inputWrapperFocused
+                  ]}
+                >
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color={isEmailFocused ? neonGreen : '#94A3B8'}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { color: textColor }]}
+                    placeholder="Enter email"
+                    placeholderTextColor="#64748B"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setIsEmailFocused(true)}
+                    onBlur={() => setIsEmailFocused(false)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
 
-          {/* Passcode Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>SECURITY CODE</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                isPasswordFocused && styles.inputWrapperFocused
-              ]}
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={isPasswordFocused ? neonGreen : '#94A3B8'}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.textInput}
-                placeholder="••••••••"
-                placeholderTextColor="#64748B"
-                value={password}
-                onChangeText={setPassword}
-                onFocus={() => setIsPasswordFocused(true)}
-                onBlur={() => setIsPasswordFocused(false)}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
+              {/* Passcode Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>SECURITY CODE</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isPasswordFocused && styles.inputWrapperFocused
+                  ]}
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color={isPasswordFocused ? neonGreen : '#94A3B8'}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { color: textColor }]}
+                    placeholder="Enter password"
+                    placeholderTextColor="#64748B"
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeToggle}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color="#94A3B8"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Submit Actions */}
               <TouchableOpacity
-                style={styles.eyeToggle}
-                onPress={() => setShowPassword(!showPassword)}
+                style={[styles.submitBtn, { backgroundColor: neonGreen }]}
+                onPress={() => handleLogin(false)}
+                disabled={isLoading || isDemoLoading}
               >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color="#94A3B8"
-                />
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#0B0F19" />
+                ) : (
+                  <>
+                    <Text style={styles.submitBtnText}>Authorize Sign In</Text>
+                    <Ionicons name="shield-checkmark" size={18} color="#0B0F19" style={{ marginLeft: 6 }} />
+                  </>
+                )}
               </TouchableOpacity>
-            </View>
-          </View>
 
-          {/* Submit Actions */}
-          <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: neonGreen }]}
-            onPress={() => handleLogin(false)}
-            disabled={isLoading || isDemoLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#0B0F19" />
-            ) : (
-              <>
-                <Text style={styles.submitBtnText}>Authorize Sign In</Text>
-                <Ionicons name="shield-checkmark" size={18} color="#0B0F19" style={{ marginLeft: 6 }} />
-              </>
-            )}
-          </TouchableOpacity>
+              {/* Forgot Password Link */}
+              <TouchableOpacity
+                style={{ alignItems: 'center', marginTop: 12, marginBottom: 4 }}
+                onPress={() => setAuthMode('forgot_email')}
+              >
+                <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '600' }}>
+                  Forgot your security code? <Text style={{ color: neonGreen }}>Reset it here</Text>
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.demoBtn}
-            onPress={() => handleLogin(true)}
-            disabled={isLoading || isDemoLoading}
-          >
-            {isDemoLoading ? (
-              <ActivityIndicator size="small" color={neonGreen} />
-            ) : (
-              <>
-                <Ionicons name="flash" size={15} color={neonGreen} style={{ marginRight: 6 }} />
-                <Text style={styles.demoBtnText}>Instant Demo Access</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.demoBtn}
+                onPress={() => handleLogin(true)}
+                disabled={isLoading || isDemoLoading}
+              >
+                {isDemoLoading ? (
+                  <ActivityIndicator size="small" color={neonGreen} />
+                ) : (
+                  <>
+                    <Ionicons name="flash" size={15} color={neonGreen} style={{ marginRight: 6 }} />
+                    <Text style={styles.demoBtnText}>Instant Demo Access</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              {/* Register Link */}
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => router.replace('/register')}
+              >
+                <Text style={[styles.backBtnText, { color: '#00E676' }]}>Register New Terminal (Sign Up)</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
-          {/* Register Link */}
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.replace('/register')}
-          >
-            <Text style={[styles.backBtnText, { color: '#00E676' }]}>Register New Terminal (Sign Up)</Text>
-          </TouchableOpacity>
+          {authMode === 'forgot_email' && (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isEmailFocused && styles.inputWrapperFocused
+                  ]}
+                >
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color={isEmailFocused ? neonGreen : '#94A3B8'}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { color: textColor }]}
+                    placeholder="Enter email"
+                    placeholderTextColor="#64748B"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setIsEmailFocused(true)}
+                    onBlur={() => setIsEmailFocused(false)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: neonGreen }]}
+                onPress={handleSendOtp}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#0B0F19" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Send OTP</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => setAuthMode('login')}
+              >
+                <Text style={[styles.backBtnText, { color: '#00E676' }]}>Back to Login</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {authMode === 'forgot_otp' && (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>ONE-TIME PASSCODE</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isPasswordFocused && styles.inputWrapperFocused
+                  ]}
+                >
+                  <Ionicons
+                    name="keypad-outline"
+                    size={18}
+                    color={isPasswordFocused ? neonGreen : '#94A3B8'}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { color: textColor }]}
+                    placeholder="Enter 6-digit OTP"
+                    placeholderTextColor="#64748B"
+                    value={otp}
+                    onChangeText={setOtp}
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    keyboardType="numeric"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: neonGreen }]}
+                onPress={handleVerifyOtp}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#0B0F19" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Verify & Continue</Text>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => setAuthMode('login')}
+              >
+                <Text style={[styles.backBtnText, { color: '#00E676' }]}>Back to Login</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Back Button */}
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={handleCloseAuth}
-          >
-            <Text style={styles.backBtnText}>Back to Splash</Text>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
+          {authMode === 'login' && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={handleCloseAuth}
+            >
+              <Text style={styles.backBtnText}>Back to Splash</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       </Animated.View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -2,10 +2,11 @@ import { Booking, useMechanic } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, Dimensions, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 
-import { MapView, Marker, Polyline, UrlTile } from '@/components/MapModule';
+import * as Location from 'expo-location';
+import { MapView, Marker, Polyline, PROVIDER_GOOGLE } from '@/components/MapModule';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const primaryAccent = '#7DA0A9';
@@ -17,6 +18,7 @@ export default function NavigationScreen() {
 
   const { bookings, currentCoords, setCurrentCoords, updateBookingStatus, generateBill, darkMode } = useMechanic();
   const [showBillModal, setShowBillModal] = useState(false);
+  const [isBillGenerated, setIsBillGenerated] = useState(false);
   const [serviceFee, setServiceFee] = useState('120');
   const [partsCost, setPartsCost] = useState('0');
   const [extraCharges, setExtraCharges] = useState('0');
@@ -34,106 +36,100 @@ export default function NavigationScreen() {
   const startPos = currentCoords || { latitude: 12.9352, longitude: 77.6245 };
   const destinationPos = { latitude: destLat, longitude: destLon };
 
-  const [currentSimulatedPos, setCurrentSimulatedPos] = React.useState(startPos);
-  const [stepIndex, setStepIndex] = React.useState(0);
+  const [currentLivePos, setCurrentLivePos] = React.useState(startPos);
   const [currentSpeed, setCurrentSpeed] = React.useState(0);
 
-  // Smooth coordinate progression toward breakdown site
+  // Real-time GPS device tracking instead of simulated movement
   React.useEffect(() => {
-    let timer: any = null;
-    let speedTimer: any = null;
+    let locationSubscription: Location.LocationSubscription | null = null;
 
-    // Simulate dynamic speed telemetry
-    speedTimer = setInterval(() => {
-      setCurrentSpeed((prev) => {
-        if (stepIndex >= 4) return 0;
-        if (stepIndex === 3) return Math.max(12, Math.floor(prev - (Math.random() * 8)));
-        if (prev < 42) return Math.min(58, Math.floor(prev + (Math.random() * 14)));
-        return Math.max(38, Math.floor(prev + (Math.random() * 6 - 3)));
-      });
-    }, 1500);
-
-    // Route coordinates steps progression
-    timer = setInterval(() => {
-      let nextCoords: any = null;
-
-      setStepIndex((idx) => {
-        const nextIdx = idx + 1;
-        if (nextIdx > 4) {
-          clearInterval(timer);
-          return 4;
+    const startTracking = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        if (Platform.OS !== 'web') {
+          Alert.alert('Permission Denied', 'Location access is required for live navigation.');
         }
-
-        const t = nextIdx / 4;
-        const nextLat = startPos.latitude + (destinationPos.latitude - startPos.latitude) * t;
-        const nextLon = startPos.longitude + (destinationPos.longitude - startPos.longitude) * t;
-
-        nextCoords = { latitude: nextLat, longitude: nextLon };
-
-        return nextIdx;
-      });
-
-      // Update state outside of the setStepIndex callback to prevent React render warnings
-      if (nextCoords) {
-        setCurrentSimulatedPos(nextCoords);
-        setCurrentCoords(nextCoords);
+        return;
       }
-    }, 4500);
+
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          distanceInterval: 2, // Update every 2 meters
+          timeInterval: 2000,  // Or every 2 seconds
+        },
+        (loc) => {
+          const newCoords = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+          setCurrentLivePos(newCoords);
+          setCurrentCoords(newCoords); // Updates global state for WebSocket broadcasting
+          setCurrentSpeed(Math.floor((loc.coords.speed || 0) * 3.6)); // Convert m/s to km/h
+        }
+      );
+    };
+
+    startTracking();
 
     return () => {
-      clearInterval(timer);
-      clearInterval(speedTimer);
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
     };
-  }, [latitude, longitude, stepIndex]);
+  }, []);
+
+  // Sync simulated coordinates from Context if testing indoors/emulator
+  useEffect(() => {
+    if (currentCoords) {
+      setCurrentLivePos(currentCoords);
+    }
+  }, [currentCoords]);
 
   const getTurnDetails = (idx: number) => {
     switch (idx) {
       case 0:
-        return {
-          icon: 'arrow-forward-circle-outline',
-          text: 'Turn right onto Hal Airport Road in 800m',
-          eta: '8 mins',
-          distance: '3.2 km',
-        };
+        return { icon: 'arrow-forward-circle-outline', text: 'Turn right onto Hal Airport Road' };
       case 1:
-        return {
-          icon: 'arrow-up-circle-outline',
-          text: 'Continue straight toward Intermediate Ring Road',
-          eta: '5 mins',
-          distance: '2.1 km',
-        };
+        return { icon: 'arrow-up-circle-outline', text: 'Continue straight toward Intermediate Ring Road' };
       case 2:
-        return {
-          icon: 'arrow-back-circle-outline',
-          text: 'In 300m, turn left at Domlur Junction',
-          eta: '3 mins',
-          distance: '1.2 km',
-        };
+        return { icon: 'arrow-back-circle-outline', text: 'Turn left at Domlur Junction' };
       case 3:
-        return {
-          icon: 'navigate-circle-outline',
-          text: 'Approaching breakdown client destination in 150m',
-          eta: '1 min',
-          distance: '150 m',
-        };
+        return { icon: 'navigate-circle-outline', text: 'Approaching breakdown client destination' };
       case 4:
       default:
-        return {
-          icon: 'pin-outline',
-          text: 'Arrived at customer breakdown site on your left',
-          eta: 'Arrived',
-          distance: '0 m',
-        };
+        return { icon: 'pin-outline', text: 'Arrived at customer breakdown site on your left' };
     }
   };
 
-  const { icon: turnIcon, text: turnText, eta: simulatedEta, distance: simulatedDist } = getTurnDetails(stepIndex);
+  // Dynamic Real Distance Calculation (Haversine Formula)
+  const getRealDistance = () => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (destinationPos.latitude - currentLivePos.latitude) * Math.PI / 180;
+    const dLon = (destinationPos.longitude - currentLivePos.longitude) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(currentLivePos.latitude * Math.PI / 180) * Math.cos(destinationPos.latitude * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in km
+  };
+
+  const realDistanceKm = getRealDistance();
+  const simulatedDist = realDistanceKm < 0.1 ? `${(realDistanceKm * 1000).toFixed(0)} m` : `${realDistanceKm.toFixed(2)} km`;
+  
+  // Real ETA calculation based on distance and speed
+  const speedForEta = currentSpeed > 5 ? currentSpeed : 40; // Avoid division by zero, assume avg 40km/h if stopped or very slow
+  const realEtaMins = (realDistanceKm / speedForEta) * 60;
+  const simulatedEta = realDistanceKm < 0.05 ? 'Arrived' : `${Math.ceil(realEtaMins)} mins`;
+
+  const turnIcon = 'navigate-circle-outline';
+  const turnText = 'Dynamic GPS guidance active';
 
   const region = {
-    latitude: (currentSimulatedPos.latitude + destinationPos.latitude) / 2,
-    longitude: (currentSimulatedPos.longitude + destinationPos.longitude) / 2,
-    latitudeDelta: Math.abs(currentSimulatedPos.latitude - destinationPos.latitude) * 2.2 || 0.03,
-    longitudeDelta: Math.abs(currentSimulatedPos.longitude - destinationPos.longitude) * 2.2 || 0.03,
+    latitude: (currentLivePos.latitude + destinationPos.latitude) / 2,
+    longitude: (currentLivePos.longitude + destinationPos.longitude) / 2,
+    latitudeDelta: Math.abs(currentLivePos.latitude - destinationPos.latitude) * 2.2 || 0.03,
+    longitudeDelta: Math.abs(currentLivePos.longitude - destinationPos.longitude) * 2.2 || 0.03,
   };
 
   const handleAction = async () => {
@@ -146,11 +142,15 @@ export default function NavigationScreen() {
       try {
         await updateBookingStatus(bookingId, 'arrived');
         if (Platform.OS === 'web') {
-          window.alert(`📍 ARRIVED\n\nYou have successfully arrived at the client breakdown site.`);
+          // Removed window.alert to prevent blocking on web
+          setTimeout(() => setShowBillModal(true), 100);
         } else {
-          Alert.alert('📍 ARRIVED', 'You have successfully arrived at the client breakdown site.');
+          Alert.alert(
+            '📍 ARRIVED',
+            'You have successfully arrived at the client breakdown site.',
+            [{ text: 'OK', onPress: () => setTimeout(() => setShowBillModal(true), 300) }]
+          );
         }
-        setShowBillModal(true); // Automatically open the bill modal!
       } catch (error) {
         console.log('Local status update for arrived:', error);
       }
@@ -184,20 +184,51 @@ export default function NavigationScreen() {
             style={styles.map}
             initialRegion={region}
             showsUserLocation={false}
-            mapType="none" // Important so it doesn't show standard Apple/Google map under OSM
+            showsMyLocationButton={true}
+            provider={PROVIDER_GOOGLE}
+            userInterfaceStyle={darkMode ? 'dark' : 'light'}
           >
-            <UrlTile
-              urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
-            <Marker coordinate={currentSimulatedPos} title="Mechanic (You)" pinColor={primaryAccent} />
-            <Marker coordinate={destinationPos} title={String(location)} pinColor="red" />
+            {/* Mechanic (You) - Cycle Icon */}
+            <Marker coordinate={currentLivePos} title="Mechanic (You)" zIndex={999}>
+              <View style={{
+                backgroundColor: '#10B981',
+                padding: 6,
+                borderRadius: 20,
+                borderWidth: 2,
+                borderColor: '#FFF',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 3,
+                elevation: 4
+              }}>
+                <Ionicons name="bicycle" size={20} color="#FFF" />
+              </View>
+            </Marker>
+
+            {/* Customer - Person Icon */}
+            <Marker coordinate={destinationPos} title={String(location)}>
+              <View style={{
+                backgroundColor: '#EF4444',
+                padding: 6,
+                borderRadius: 20,
+                borderWidth: 2,
+                borderColor: '#FFF',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 3,
+                elevation: 4
+              }}>
+                <Ionicons name="person" size={20} color="#FFF" />
+              </View>
+            </Marker>
+
             <Polyline
-              coordinates={[startPos, destinationPos]}
+              coordinates={[currentLivePos, destinationPos]}
               strokeColor="#3B82F6"
-              strokeWidth={8} // Broad line requested by user
-              lineDashPattern={[0]}
+              strokeWidth={6}
+              lineDashPattern={[1, 5]}
             />
           </MapView>
         ) : (
@@ -221,7 +252,7 @@ export default function NavigationScreen() {
             </View>
             <View style={styles.coordsBlock}>
               <Text style={[styles.coordsText, { color: textSecondary }]}>
-                GPS: {currentSimulatedPos.latitude.toFixed(5)}°N, {currentSimulatedPos.longitude.toFixed(5)}°E
+                GPS: {currentLivePos.latitude.toFixed(5)}°N, {currentLivePos.longitude.toFixed(5)}°E
               </Text>
               <Text style={[styles.coordsText, { color: textSecondary }]}>
                 Dest: {destinationPos.latitude.toFixed(5)}°N, {destinationPos.longitude.toFixed(5)}°E
@@ -344,7 +375,8 @@ export default function NavigationScreen() {
             </Text>
 
             <TouchableOpacity
-              style={{ width: '100%', backgroundColor: '#10B981', marginTop: 32, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+              style={{ width: '100%', backgroundColor: isBillGenerated ? '#64748B' : '#10B981', marginTop: 32, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', opacity: isBillGenerated ? 0.5 : 1 }}
+              disabled={isBillGenerated}
               onPress={async () => {
                 if (!booking) return;
                 try {
@@ -355,26 +387,47 @@ export default function NavigationScreen() {
                     billingDetails: 'Custom Generated Bill'
                   });
                   if (billResult.success || billResult.isOffline) {
-                    await updateBookingStatus(booking.id, 'completed');
-                    setShowBillModal(false);
+                    setIsBillGenerated(true);
                     if (Platform.OS === 'web') {
-                      window.alert('Success: Job Completed.');
+                      window.alert('Success: Bill Generated successfully.');
                     } else {
-                      Alert.alert('Success', 'Job Completed.');
+                      Alert.alert('Success', 'Bill Generated successfully. You can now complete the transaction.');
                     }
-                    router.back();
                   } else {
                     Platform.OS === 'web' 
                       ? window.alert(`Error: ${billResult.error || 'Failed to generate bill.'}`) 
                       : Alert.alert('Error', billResult.error || 'Failed to generate bill.');
                   }
                 } catch (error) {
-                  Platform.OS === 'web' ? window.alert('Error: Failed to complete job.') : Alert.alert('Error', 'Failed to complete job.');
+                  Platform.OS === 'web' ? window.alert('Error: Failed to generate bill.') : Alert.alert('Error', 'Failed to generate bill.');
                 }
               }}
             >
-              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>Generate & Complete</Text>
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>{isBillGenerated ? 'Bill Generated' : 'Generate Bill'}</Text>
             </TouchableOpacity>
+
+            {isBillGenerated && (
+              <TouchableOpacity
+                style={{ width: '100%', backgroundColor: '#3B82F6', marginTop: 12, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+                onPress={async () => {
+                  if (!booking) return;
+                  try {
+                    await updateBookingStatus(booking.id, 'completed');
+                    setShowBillModal(false);
+                    if (Platform.OS === 'web') {
+                      window.alert('Success: Transaction Completed.');
+                    } else {
+                      Alert.alert('Success', 'Transaction Completed.');
+                    }
+                    router.back();
+                  } catch (error) {
+                    Platform.OS === 'web' ? window.alert('Error: Failed to complete transaction.') : Alert.alert('Error', 'Failed to complete transaction.');
+                  }
+                }}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 16 }}>Complete Transaction</Text>
+              </TouchableOpacity>
+            )}
             
             <View style={{ alignItems: 'center', marginTop: 12, padding: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 8 }}>
               <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '700' }}>CALLING ENDPOINT:</Text>

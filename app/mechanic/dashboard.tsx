@@ -6,6 +6,7 @@ import BookingCard from '@/components/BookingCard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BottomNav from '@/components/BottomNav';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -25,9 +26,6 @@ export default function DashboardScreen() {
     bookings,
     garageInfo,
     darkMode,
-    dailyEarnings,
-    monthlyEarnings,
-    completedJobsCount,
     acceptBooking,
     rejectBooking,
     refreshBookings,
@@ -36,6 +34,7 @@ export default function DashboardScreen() {
     isSocketConnected,
     currentCoords,
     mechanicId,
+    dashboardStats,
   } = useMechanic();
 
   const pathname = usePathname();
@@ -51,7 +50,7 @@ export default function DashboardScreen() {
 
   const insets = useSafeAreaInsets();
 
-  const activeBg = darkMode ? '#0F172A' : '#F4F6F8';
+  const activeBg = darkMode ? '#0F172A' : '#FFFFFF';
   const cardBg = darkMode ? '#1E293B' : '#FFFFFF';
   const textPrimary = darkMode ? '#F8FAFC' : '#1E293B';
   const textSecondary = darkMode ? '#94A3B8' : '#64748B';
@@ -64,8 +63,8 @@ export default function DashboardScreen() {
   const headerTextSecondary = darkMode ? '#94A3B8' : '#E2ECEE';
 
   // Filter bookings for sections
-  const pendingRequests = isOnline ? bookings.filter((b) => b.status === 'pending') : [];
-  const activeJobs = bookings.filter((b) => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'arrived');
+  const pendingRequests = React.useMemo(() => isOnline ? bookings.filter((b) => b.status === 'pending') : [], [isOnline, bookings]);
+  const activeJobs = React.useMemo(() => bookings.filter((b) => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'arrived'), [bookings]);
   // Top pending request (shown as notification)
   const topRequest = pendingRequests[0] ?? null;
 
@@ -97,7 +96,7 @@ export default function DashboardScreen() {
           <View style={styles.brandInfo}>
             <Text style={[styles.garageText, { color: headerTextPrimary }]}>{garageInfo.name}</Text>
             <Text style={[styles.statusText, { color: headerTextSecondary }]}>
-              {isOnline ? 'Online' : 'Offline'} • ID: {mechanicId || '5'} • {garageInfo.ownerName}
+              {isOnline ? 'Online' : 'Offline'} {mechanicId ? `• ID: ${mechanicId}` : ''} {garageInfo.ownerName ? `• ${garageInfo.ownerName}` : ''}
             </Text>
           </View>
 
@@ -119,12 +118,7 @@ export default function DashboardScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.settingsBtn, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.15)', marginRight: 8 }]}
-            onPress={() => router.push('/mechanic/customer-preview')}
-          >
-            <MaterialCommunityIcons name="play-circle-outline" size={22} color={headerTextPrimary} />
-          </TouchableOpacity>
+
 
           <TouchableOpacity
             style={[styles.settingsBtn, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.15)' }]}
@@ -148,6 +142,14 @@ export default function DashboardScreen() {
           />
         }
       >
+        {/* Cute Dashboard Header Image */}
+        <View style={{ alignItems: 'center', marginBottom: 16 }}>
+          <Image 
+            source={require('@/assets/images/cute-mechanic.png')} 
+            style={{ width: 120, height: 120, resizeMode: 'contain' }} 
+          />
+        </View>
+
         {/* Live WebSocket GPS Tracking Banner */}
         {isOnline && (
           <View
@@ -184,15 +186,24 @@ export default function DashboardScreen() {
                     : 'Getting location...'
                   }
                 </Text>
-                {isSocketConnected && (
+                {isSocketConnected && activeJobs.length > 0 && (
                   <View style={{ marginTop: 8, backgroundColor: 'rgba(6, 182, 212, 0.08)', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.2)' }}>
                     <Text style={{ color: '#06B6D4', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
-                      <Ionicons name="wifi" size={9} color="#06B6D4" /> SENDING LOCATION EVERY 3s
+                      <Ionicons name="wifi" size={9} color="#06B6D4" /> SENDING LIVE LOCATION TO CUSTOMER
                     </Text>
                     <Text style={{ color: textSecondary, fontSize: 9, fontWeight: '600', marginTop: 4, fontFamily: 'monospace' }}>
-                      Endpoint: /app/mechanic/location{'\n'}
-                      Auth: Bearer [JWT Token]{'\n'}
-                      Payload: {`{ userId: ${mechanicId}, lat: ${currentCoords?.latitude.toFixed(4)}, lon: ${currentCoords?.longitude.toFixed(4)} }`}
+                      Endpoint: /topic/user/tracking/{activeJobs[0].customerId || '...'}{'\n'}
+                      Payload: {`{ userId: ${activeJobs[0].customerId || '...'}, lat: ${currentCoords?.latitude.toFixed(4)}, lon: ${currentCoords?.longitude.toFixed(4)} }`}
+                    </Text>
+                  </View>
+                )}
+                {isSocketConnected && activeJobs.length === 0 && (
+                  <View style={{ marginTop: 8, backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                    <Text style={{ color: '#10B981', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
+                      <Ionicons name="shield-checkmark" size={9} color="#10B981" /> LOCATION ON STANDBY (NOT BROADCASTING)
+                    </Text>
+                    <Text style={{ color: textSecondary, fontSize: 9, fontWeight: '600', marginTop: 4 }}>
+                      Location will automatically start tracking once you accept a booking.
                     </Text>
                   </View>
                 )}
@@ -216,13 +227,44 @@ export default function DashboardScreen() {
                     { color: isSocketConnected ? '#10B981' : '#EF4444' }
                   ]}
                 >
-                  {isSocketConnected ? 'LIVE FEED' : 'RECONNECTING'}
+                  {isSocketConnected ? (activeJobs.length > 0 ? 'LIVE FEED' : 'CONNECTED') : 'RECONNECTING'}
                 </Text>
               </View>
               <View style={[styles.gpsBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)', marginLeft: 8 }]}>
                 <Ionicons name="person" size={12} color="#F59E0B" />
-                <Text style={[styles.gpsBadgeText, { color: '#F59E0B' }]}>ID: {mechanicId || '5'}</Text>
+                <Text style={[styles.gpsBadgeText, { color: '#F59E0B' }]}>ID: {mechanicId || '...'}</Text>
               </View>
+            </View>
+          </View>
+        )}
+
+        {/* DASHBOARD STATS OVERVIEW */}
+        {dashboardStats && (
+          <View style={styles.statsGrid}>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="briefcase-outline" size={24} color={primaryAccent} />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.totalJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Total Jobs</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="checkmark-circle-outline" size={24} color="#10B981" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.completedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Completed</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="car-sport-outline" size={24} color="#3B82F6" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.acceptedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Accepted</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="time-outline" size={24} color="#F59E0B" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.pendingJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Pending</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="close-circle-outline" size={24} color="#EF4444" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.rejectedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Rejected</Text>
             </View>
           </View>
         )}
@@ -279,21 +321,21 @@ export default function DashboardScreen() {
 
           <View style={styles.statsMain}>
             <View>
-              <Text style={styles.statsSubVal}>Rs. {monthlyEarnings.toFixed(0)}</Text>
-              <Text style={styles.statsSubLbl}>This Month</Text>
+              <Text style={styles.statsSubVal}>Jobs: {dashboardStats?.totalJobs ?? 0}</Text>
+              <Text style={styles.statsSubLbl}>Total</Text>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
 
             <View>
-              <Text style={[styles.statsSubVal, { color: darkMode ? '#10B981' : '#FFFFFF' }]}>+Rs. {dailyEarnings.toFixed(0)}</Text>
-              <Text style={styles.statsSubLbl}>Today</Text>
+              <Text style={[styles.statsSubVal, { color: darkMode ? '#10B981' : '#FFFFFF' }]}>{dashboardStats?.acceptedJobs ?? 0}</Text>
+              <Text style={styles.statsSubLbl}>Accepted</Text>
             </View>
 
             <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
 
             <View>
-              <Text style={styles.statsSubVal}>{completedJobsCount}</Text>
+              <Text style={styles.statsSubVal}>{dashboardStats?.completedJobs ?? 0}</Text>
               <Text style={styles.statsSubLbl}>Completed Jobs</Text>
             </View>
           </View>
@@ -311,7 +353,15 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {topRequest ? (
+        {activeJobs.length > 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <Ionicons name="lock-closed" size={40} color="#F59E0B" />
+            <Text style={[styles.emptyText, { color: textPrimary }]}>Job In Progress</Text>
+            <Text style={[styles.emptySub, { color: textSecondary }]}>
+              Please complete your active booking to receive new requests.
+            </Text>
+          </View>
+        ) : topRequest ? (
           <View style={[styles.notifContainer, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <TouchableOpacity
               activeOpacity={0.85}
@@ -410,7 +460,7 @@ export default function DashboardScreen() {
         </View>
 
         {activeJobs.length > 0 ? (
-          activeJobs.map((booking) => (
+          activeJobs.slice(0, 1).map((booking) => (
             <BookingCard
               key={booking.id}
               booking={booking}
@@ -429,50 +479,7 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Reusable Premium Floating Bottom Navigation Bar */}
-      <View style={[styles.navbarContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={[styles.navbar, darkMode ? styles.navbarDark : styles.navbarLight]}>
-          <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-            <View style={[styles.activeTabHighlight, { backgroundColor: darkMode ? 'rgba(125, 160, 169, 0.15)' : 'rgba(125, 160, 169, 0.12)' }]}>
-              <Ionicons name="speedometer" size={20} color={primaryAccent} />
-            </View>
-            <Text style={[styles.navTextActive, { color: primaryAccent }]}>Dashboard</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/mechanic/bookings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="construct" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Bookings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/mechanic/earnings')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="cash" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Earnings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/mechanic/payments' as any)}>
-            {pathname === '/mechanic/payments' ? (
-              <View style={[styles.activeTabHighlight, { backgroundColor: darkMode ? 'rgba(125, 160, 169, 0.15)' : 'rgba(125, 160, 169, 0.12)' }]}>
-                <MaterialCommunityIcons name="credit-card-outline" size={20} color={primaryAccent} />
-              </View>
-            ) : (
-              <View style={styles.inactiveTabIcon}>
-                <MaterialCommunityIcons name="credit-card-outline" size={20} color={textSecondary} />
-              </View>
-            )}
-            <Text style={[pathname === '/mechanic/payments' ? styles.navTextActive : styles.navText, { color: pathname === '/mechanic/payments' ? primaryAccent : textSecondary }]}>Payments</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/mechanic/profile')}>
-            <View style={styles.inactiveTabIcon}>
-              <Ionicons name="person" size={20} color={textSecondary} />
-            </View>
-            <Text style={[styles.navText, { color: textSecondary }]}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNav />
     </View>
   );
 }
@@ -480,6 +487,35 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  statBox: {
+    width: '31%',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  statLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   topHeader: {
     borderBottomWidth: 1,

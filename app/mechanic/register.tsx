@@ -6,7 +6,7 @@ import { useMechanic } from '@/components/MechanicContext';
 export default function LoginScreen() {
   const { login } = useMechanic();
   
-  // Default inputs set to your credentials
+
   const [email, setEmail] = useState('preetallice@gmail.com');
   const [password, setPassword] = useState('#Allice2004');
   const [isLoading, setIsLoading] = useState(false);

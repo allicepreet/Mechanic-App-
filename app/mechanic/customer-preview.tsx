@@ -5,6 +5,7 @@ import { useMechanic, Review } from '@/components/MechanicContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapView, Marker, Polyline } from '@/components/MapModule';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -63,7 +64,7 @@ const RANDOM_CLIENTS = [
 ];
 
 export default function CustomerPreviewScreen() {
-  const { garageInfo, darkMode, reviews, isOnline, addSimulatedBooking } = useMechanic();
+  const { garageInfo, darkMode, reviews, isOnline, addSimulatedBooking, currentCoords, bookings } = useMechanic();
   const insets = useSafeAreaInsets();
 
   const [customerName, setCustomerName] = useState('');
@@ -72,6 +73,8 @@ export default function CustomerPreviewScreen() {
   const [selectedService, setSelectedService] = useState(SERVICES[0]);
   const [customNotes, setCustomNotes] = useState('');
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+  const [clientCoords, setClientCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const activeBg = darkMode ? '#0F172A' : '#F4F6F8';
   const cardBg = darkMode ? '#1E293B' : '#FFFFFF';
@@ -104,8 +107,17 @@ export default function CustomerPreviewScreen() {
       return;
     }
 
+    const customerId = Math.floor(100 + Math.random() * 900);
+    const clientLat = 12.9352 + (Math.random() - 0.5) * 0.02;
+    const clientLon = 77.6245 + (Math.random() - 0.5) * 0.02;
+    setClientCoords({ latitude: clientLat, longitude: clientLon });
+
+    const bId = `B00${Date.now().toString().slice(-4)}`;
+
     // Call addSimulatedBooking from context
     addSimulatedBooking({
+      id: bId,
+      customerId: customerId,
       customerName: customerName,
       customerPhone: `+1 (555) 0${Math.floor(10 + Math.random() * 90)}-${Math.floor(1000 + Math.random() * 9000)}`,
       vehicle: selectedVehicle,
@@ -113,16 +125,24 @@ export default function CustomerPreviewScreen() {
       price: selectedService.price,
       notes: customNotes.trim() || 'Customer requested premium performance inspection.',
       location: strandedLocation.trim(),
-      time: '02:30 PM',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      latitude: clientLat,
+      longitude: clientLon,
+      status: 'pending',
     });
 
+    setActiveBookingId(bId);
     setBookingSubmitted(true);
   };
 
   const resetForm = () => {
     prefillRandomClient();
     setBookingSubmitted(false);
+    setActiveBookingId(null);
+    setClientCoords(null);
   };
+
+  const activeBooking = bookings.find(b => String(b.id) === String(activeBookingId)) || null;
 
   return (
     <KeyboardAvoidingView
@@ -245,19 +265,139 @@ export default function CustomerPreviewScreen() {
           </View>
 
           {bookingSubmitted ? (
-            <View style={styles.successContainer}>
-              <View style={styles.successBadge}>
-                <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+            <View style={styles.trackingContainer}>
+              {/* Premium Tracker Header */}
+              <View style={[styles.trackingHeader, { borderBottomColor: cardBorder }]}>
+                <MaterialCommunityIcons name="radar" size={24} color="#F59E0B" />
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={[styles.trackingTitle, { color: textPrimary }]}>Live Dispatch Tracking</Text>
+                  <Text style={[styles.trackingSubtitleText, { color: textSecondary }]}>
+                    Booking ID: {activeBooking?.id || 'Pending'} · {activeBooking?.vehicle}
+                  </Text>
+                </View>
+                <View style={[styles.statusBadgeIcon, { backgroundColor: activeBooking?.status === 'arrived' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)' }]}>
+                  <Text style={{ color: activeBooking?.status === 'arrived' ? '#10B981' : '#F59E0B', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>
+                    {activeBooking?.status?.replace('_', ' ') || 'pending'}
+                  </Text>
+                </View>
               </View>
-              <Text style={[styles.successTitle, { color: textPrimary }]}>Dispatch Request Sent!</Text>
-              <Text style={[styles.successSub, { color: textSecondary }]}>
-                {"Your roadside recovery request has been dispatched directly to Dominic's rider terminal! His mobile tuning van has departed the hub. Real-time GPS tracking is now active."}
-              </Text>
+
+              {/* Dynamic Status Notification Alert Banner */}
+              {activeBooking?.status === 'arrived' ? (
+                <View style={styles.arrivedBanner}>
+                  <Ionicons name="sparkles" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.arrivedBannerTitle}>🚨 MECHANIC ARRIVED!</Text>
+                    <Text style={styles.arrivedBannerSub}>Dominic T. has arrived at your location with the mobile tuning van.</Text>
+                  </View>
+                </View>
+              ) : activeBooking?.status === 'accepted' || activeBooking?.status === 'in_progress' ? (
+                <View style={[styles.enRouteBanner, { backgroundColor: 'rgba(6, 182, 212, 0.1)', borderColor: 'rgba(6, 182, 212, 0.3)' }]}>
+                  <MaterialCommunityIcons name="truck-delivery" size={20} color="#06B6D4" style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#06B6D4', fontWeight: '800', fontSize: 12 }}>MECHANIC EN ROUTE</Text>
+                    <Text style={{ color: textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 }}>Dominic T. is navigating to your stranded location. Keep this page open to watch progress.</Text>
+                  </View>
+                </View>
+              ) : activeBooking?.status === 'completed' ? (
+                <View style={[styles.enRouteBanner, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                  <Ionicons name="checkmark-circle" size={20} color="#10B981" style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#10B981', fontWeight: '800', fontSize: 12 }}>SERVICE COMPLETED</Text>
+                    <Text style={{ color: textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 }}>The tune-up is completed and your performance diagnostics are solid! Thank you.</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.enRouteBanner, { backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <MaterialCommunityIcons name="clock-outline" size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#F59E0B', fontWeight: '800', fontSize: 12 }}>AWAITING DISPATCH DISCOVERY</Text>
+                    <Text style={{ color: textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 }}>Waiting for Dominic T. to accept your dispatch request on his rider screen...</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Real-time GPS Tracking Map */}
+              {clientCoords && (
+                <View style={[styles.mapWrapper, { borderColor: cardBorder }]}>
+                  {Platform.OS !== 'web' && MapView ? (
+                    <MapView
+                      style={styles.trackingMap}
+                      initialRegion={{
+                        latitude: (clientCoords.latitude + (currentCoords?.latitude || 12.9352)) / 2,
+                        longitude: (clientCoords.longitude + (currentCoords?.longitude || 77.6245)) / 2,
+                        latitudeDelta: Math.abs(clientCoords.latitude - (currentCoords?.latitude || 12.9352)) * 2 || 0.05,
+                        longitudeDelta: Math.abs(clientCoords.longitude - (currentCoords?.longitude || 77.6245)) * 2 || 0.05,
+                      }}
+                      showsUserLocation={false}
+                    >
+                      {/* Customer stranded pin */}
+                      <Marker
+                        coordinate={clientCoords}
+                        title="You (Stranded Vehicle)"
+                        pinColor="red"
+                      />
+                      {/* Mechanic incoming pin */}
+                      {currentCoords && (
+                        <Marker
+                          coordinate={currentCoords}
+                          title="Dominic T. (Mechanic Van)"
+                          pinColor="orange"
+                        />
+                      )}
+                      {/* Polyline path between mechanic and customer */}
+                      {currentCoords && (
+                        <Polyline
+                          coordinates={[currentCoords, clientCoords]}
+                          strokeWidth={3}
+                          strokeColor="#F59E0B"
+                        />
+                      )}
+                    </MapView>
+                  ) : (
+                    <View style={styles.webMapFallback}>
+                      <MaterialCommunityIcons name="map-legend" size={32} color={textSecondary} />
+                      <Text style={{ color: textPrimary, fontSize: 12, fontWeight: '700', marginTop: 8 }}>Interactive Map Simulator Active</Text>
+                      <Text style={{ color: textSecondary, fontSize: 10, textAlign: 'center', marginTop: 4, paddingHorizontal: 16 }}>
+                        Mechanic GPS: {currentCoords ? `${currentCoords.latitude.toFixed(4)}°, ${currentCoords.longitude.toFixed(4)}°` : 'Awaiting signal...'}{'\n'}
+                        Your Location: {clientCoords.latitude.toFixed(4)}°, {clientCoords.longitude.toFixed(4)}°{'\n'}
+                        Distance: {currentCoords ? '0.85 km away' : 'Calculating...'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Dynamic Live WebSocket Payload Logger */}
+              <View style={[styles.logBanner, { backgroundColor: darkMode ? 'rgba(0,0,0,0.3)' : '#F1F5F9' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
+                    <Ionicons name="radio" size={10} color="#F59E0B" /> DYNAMIC WEBSOCKET SUBSCRIBER STREAM
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 4 }} />
+                    <Text style={{ color: textSecondary, fontSize: 8, fontWeight: '700' }}>CONNECTED</Text>
+                  </View>
+                </View>
+                <Text style={[styles.logText, { color: textSecondary }]}>
+                  Topic: <Text style={{ color: textPrimary, fontWeight: '800' }}>/topic/customer/{activeBooking?.customerId || '999'}</Text>{'\n'}
+                  Socket Link: <Text style={{ color: textPrimary }}>ws://localhost:8080/ws</Text>{'\n'}
+                  Payload: {JSON.stringify({
+                    lat: currentCoords?.latitude || 12.9352,
+                    lon: currentCoords?.longitude || 77.6245,
+                    status: activeBooking?.status || 'pending',
+                    arrived: activeBooking?.status === 'arrived',
+                    timestamp: new Date().toLocaleTimeString()
+                  }, null, 1)}
+                </Text>
+              </View>
+
+              {/* Reset / Submit Another Dispatch Request */}
               <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: primaryAccent, width: '80%' }]}
+                style={[styles.submitBtn, { backgroundColor: primaryAccent, width: '100%', marginTop: 16 }]}
                 onPress={resetForm}
               >
-                <Text style={styles.submitBtnText}>Submit Another Dispatch Request</Text>
+                <Text style={styles.submitBtnText}>Cancel and Reset Tracker</Text>
               </TouchableOpacity>
             </View>
           ) : !isOnline ? (
@@ -828,5 +968,95 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
     fontStyle: 'italic',
+  },
+  trackingContainer: {
+    gap: 12,
+  },
+  trackingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingBottom: 12,
+    marginBottom: 8,
+  },
+  trackingTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  trackingSubtitleText: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  statusBadgeIcon: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  arrivedBanner: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  arrivedBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  arrivedBannerSub: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  enRouteBanner: {
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  mapWrapper: {
+    height: 180,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  trackingMap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  webMapFallback: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    padding: 16,
+  },
+  logBanner: {
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.15)',
+  },
+  logText: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    fontWeight: '600',
+    marginTop: 8,
   },
 });

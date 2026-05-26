@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Client } from '@stomp/stompjs';
 import axios from 'axios';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
-import { Client } from '@stomp/stompjs';
+import { Platform, Vibration } from 'react-native';
+import { Audio } from 'expo-av';
 import SockJS from 'sockjs-client';
 
 export interface Booking {
@@ -21,6 +22,7 @@ export interface Booking {
   eta?: string;
   distance?: string;
   date?: string;
+  customerId?: string | number;
 }
 
 export interface Review {
@@ -30,6 +32,14 @@ export interface Review {
   comment: string;
   date: string;
   service: string;
+}
+
+export interface DashboardStats {
+  totalJobs: number;
+  completedJobs: number;
+  acceptedJobs: number;
+  pendingJobs: number;
+  rejectedJobs: number;
 }
 
 export const getVehicleImage = (vehicleName: string): any => {
@@ -65,6 +75,8 @@ interface MechanicContextType {
   monthlyEarnings: number;
   totalEarnings: number;
   garageInfo: GarageInfo;
+  dashboardStats: DashboardStats | null;
+  weeklyJobs: { day: string; totalJobs: number }[];
   reviews: Review[];
   notificationsEnabled: boolean;
   setIsOnline: (online: boolean) => void;
@@ -82,6 +94,10 @@ interface MechanicContextType {
   addSimulatedBooking: (bookingData: any) => void;
   updateGarageInfo: (info: Partial<GarageInfo>) => void;
   updateProfileOnServer: (name: string, phoneNo: string, experience: string) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  sendLocationToCustomer: (bookingId: string) => Promise<{ success: boolean; isOffline?: boolean; error?: string }>;
 }
 
 const MechanicContext = createContext<MechanicContextType | null>(null);
@@ -118,10 +134,12 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [weeklyJobs, setWeeklyJobs] = useState<{ day: string; totalJobs: number }[]>([]);
 
   // Sync bookings to storage
   useEffect(() => {
@@ -133,6 +151,17 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     { latitude: 12.9352, longitude: 77.6245 }
   );
   const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>({ latitude: 12.9352, longitude: 77.6245 });
+  const bookingsRef = useRef<Booking[]>([]);
+
+  useEffect(() => {
+    bookingsRef.current = bookings;
+  }, [bookings]);
+
+  useEffect(() => {
+    if (isLoggedIn && authToken) {
+      refreshBookings();
+    }
+  }, [isLoggedIn, authToken]);
 
   const [mechanicId, setMechanicId] = useState<string>('5');
 
@@ -159,15 +188,27 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const [garageInfo, setGarageInfo] = useState<GarageInfo>({
-    name: 'Apex Auto Works',
-    ownerName: 'Dominic T.',
-    phone: '+1 (555) 999-8800',
-    address: '10880 El Mirador Dr, Los Angeles, CA',
-    workingHours: '8:00 AM - 10:00 PM',
-    specialties: ['EV Battery Calibration', 'ECU Tuning', 'High-Performance Diagnostics Frameworks'],
+    name: '',
+    ownerName: '',
+    phone: '',
+    address: '',
+    workingHours: '',
+    specialties: [],
   });
 
   const stompClientRef = useRef<any>(null);
+
+  const playNotificationSound = async () => {
+    try {
+      Vibration.vibrate([0, 500, 200, 500]);
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/bell.wav')
+      );
+      await sound.playAsync();
+    } catch (error) {
+      console.log('[AUDIO] Error playing notification sound', error);
+    }
+  };
 
   // ─── WebSocket / STOMP Connection ─────────────────────────────────────────
   useEffect(() => {
@@ -178,9 +219,9 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
 
     const connectToStompBroker = () => {
       console.log('[STOMP] Initializing network socket stream...');
-      
+
       const client = new Client({
-        webSocketFactory: () => new SockJS(`${BASE_HTTP_URL}/ws`),
+        brokerURL: `${BASE_HTTP_URL.replace('http', 'ws')}/ws/websocket`,
         connectHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
         debug: (str) => {
           console.log('[STOMP DEBUG]', str);
@@ -193,7 +234,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       client.onConnect = (frame) => {
         console.log('[STOMP] Connected to Message Broker!', frame);
         setIsSocketConnected(true);
-        
+
         client.subscribe(`/topic/mechanic/${mechanicId}`, (message) => {
           if (message.body) {
             try {
@@ -211,10 +252,15 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
                 status: 'pending',
                 latitude: parsedPayload.latitude || parsedPayload.lat || 12.9716,
                 longitude: parsedPayload.longitude || parsedPayload.lon || 77.5946,
+                customerId: parsedPayload.customerId || parsedPayload.userId || parsedPayload.id,
               };
               setBookings((prev) => {
                 // avoid duplicate bookings
                 if (prev.some(b => b.id === incomingRequest.id)) return prev;
+                
+                // New incoming booking! Play notification immediately
+                playNotificationSound();
+                
                 return [incomingRequest, ...prev];
               });
             } catch (err) {
@@ -228,7 +274,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
         console.error('[STOMP] Broker reported error: ' + frame.headers['message']);
         console.error('[STOMP] Additional details: ' + frame.body);
       };
-      
+
       client.onWebSocketClose = () => {
         setIsSocketConnected(false);
       };
@@ -239,9 +285,11 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
 
     connectToStompBroker();
     return () => {
-      if (stompClientRef.current) stompClientRef.current.deactivate();
+      if (stompClientRef.current) {
+        stompClientRef.current.deactivate();
+      }
     };
-  }, [isLoggedIn, mechanicId]);
+  }, [isLoggedIn, authToken, mechanicId]);
 
   // ─── Restore Session on App Launch ────────────────────────────────────────
   useEffect(() => {
@@ -281,19 +329,38 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     currentCoordsRef.current = coords;
   };
 
-  // Broadcast location to WebSocket every 3 seconds
+  // Broadcast location to WebSocket every 3 seconds ONLY if there is an active job en route
   useEffect(() => {
     if (!isLoggedIn || !isSocketConnected || !stompClientRef.current) return;
 
     const intervalId = setInterval(() => {
-      const coords = currentCoordsRef.current;
-      if (coords && stompClientRef.current?.connected) {
+      // Find a booking that should actively broadcast location (before completion)
+      const trackingBooking = bookingsRef.current.find(b => ['accepted', 'in_progress', 'arrived'].includes(b.status));
+      const targetUserId = trackingBooking?.customerId ? Number(trackingBooking.customerId) : null;
+      let coords = currentCoordsRef.current;
+
+      // Find a booking that is currently en route to trigger the simulated movement
+      const movingBooking = bookingsRef.current.find(b => ['accepted', 'in_progress'].includes(b.status));
+
+      if (movingBooking && coords) {
+        // SIMULATE MOVEMENT: continuously move the mechanic slightly while en route
+        coords = {
+          latitude: coords.latitude + 0.00005,
+          longitude: coords.longitude + 0.00005,
+        };
+        currentCoordsRef.current = coords;
+        setCurrentCoordsState(coords);
+      }
+
+      // Only send if we have a target user (customer) and coordinates
+      if (targetUserId && coords && stompClientRef.current?.connected) {
         stompClientRef.current.publish({
-          destination: '/app/mechanic/location',
+          destination: `/topic/user/tracking/${targetUserId}`,
           body: JSON.stringify({
-            userId: Number(mechanicId),
-            lat: coords.latitude,
-            lon: coords.longitude,
+            userId: targetUserId,
+            mechanicId: mechanicId,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
           }),
         });
       }
@@ -386,10 +453,40 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const forgotPassword = async (email: string) => {
+    try {
+      const response = await axios.post(`${BASE_HTTP_URL}/api/auth/forgot-password?email=${encodeURIComponent(email)}`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[AUTH] Forgot password failed:', error?.response?.data || error?.message);
+      return { success: false, error: error.response?.data?.message || 'Failed to send OTP.' };
+    }
+  };
+
+  const verifyOtp = async (email: string, otp: string) => {
+    try {
+      const response = await axios.post(`${BASE_HTTP_URL}/api/auth/verify-otp`, { email, otp });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[AUTH] Verify OTP failed:', error?.response?.data || error?.message);
+      return { success: false, error: error.response?.data?.message || 'Invalid OTP.' };
+    }
+  };
+
+  const resetPassword = async (oldPassword: string, newPassword: string) => {
+    try {
+      const response = await axios.post(`${BASE_HTTP_URL}/api/auth/reset-password`, { oldPassword, newPassword });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[AUTH] Reset password failed:', error?.response?.data || error?.message);
+      return { success: false, error: error.response?.data?.message || 'Failed to reset password.' };
+    }
+  };
+
   const updateBookingStatus = async (id: string, status: Booking['status']) => {
     try {
       setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
-      
+
       const numericId = parseInt(id.replace(/\D/g, ''), 10);
       if (isNaN(numericId)) {
         console.warn(`[BOOKING] Could not parse numeric ID from booking ID: ${id}`);
@@ -399,6 +496,9 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       if (status === 'accepted') {
         await axios.patch(`${BASE_HTTP_URL}/api/booking/accept/${numericId}`);
         console.log(`[BOOKING] Successfully accepted booking ${numericId} on server`);
+      } else if (status === 'rejected') {
+        await axios.patch(`${BASE_HTTP_URL}/api/booking/reject/${numericId}`);
+        console.log(`[BOOKING] Successfully rejected booking ${numericId} on server`);
       } else if (status === 'completed') {
         // Only complete booking here
         await axios.patch(`${BASE_HTTP_URL}/api/booking/complete/${numericId}`);
@@ -406,10 +506,52 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       } else {
         console.log(`[BOOKING] Local status update only for status: ${status}`);
       }
+
+      // Broadcast location and status change via WebSocket to customer
+      const booking = bookingsRef.current.find(b => String(b.id) === String(id));
+      const targetUserId = booking?.customerId ? Number(booking.customerId) : null;
+      const coords = currentCoordsRef.current;
+
+      if (targetUserId && stompClientRef.current?.connected) {
+        if (status === 'arrived') {
+          stompClientRef.current.publish({
+            destination: `/topic/user/tracking/${targetUserId}`,
+            body: JSON.stringify({
+              userId: targetUserId,
+              mechanicId: mechanicId,
+              latitude: coords ? coords.latitude : 12.9352,
+              longitude: coords ? coords.longitude : 77.6245,
+              status: 'arrived',
+              arrived: true
+            }),
+          });
+          console.log(`[SOCKET] Broadcasted arrived status and location for booking: ${id}`);
+        } else if (status === 'completed') {
+          stompClientRef.current.publish({
+            destination: `/topic/user/tracking/${targetUserId}`,
+            body: JSON.stringify({
+              userId: targetUserId,
+              mechanicId: mechanicId,
+              latitude: coords ? coords.latitude : 12.9352,
+              longitude: coords ? coords.longitude : 77.6245,
+              status: 'completed',
+              completed: true
+            }),
+          });
+          console.log(`[SOCKET] Broadcasted completed status and location for booking: ${id}`);
+        }
+      }
+
       return { success: true };
     } catch (error: any) {
       console.error(`[BOOKING] Failed to update status to ${status} on server:`, error?.response?.data || error?.message);
-      // Fallback to simulation mode so flow can continue even if backend fails
+
+      // If server says it is already in the target state (e.g. COMPLETED conflict), treat as success
+      if (error?.response?.status === 409 && error?.response?.data?.message?.includes(status.toUpperCase())) {
+        console.log(`[BOOKING] Server indicates booking is already ${status}. Treating as success.`);
+        return { success: true };
+      }
+
       return { success: false, isOffline: true, error: error.response?.data?.message || 'Failed to update status.' };
     }
   };
@@ -424,24 +566,82 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
 
       const defaultBill = {
         bookingId: numericId,
-        serviceCharge: billDetails?.serviceCharge || 120,
+        serviceCharge: billDetails?.serviceCharge || 0,
         partsCost: billDetails?.partsCost || 0,
         extraCharges: billDetails?.extraCharges || 0,
         billingDetails: billDetails?.billingDetails || "Standard Service Completion"
       };
+
+      const newTotal = defaultBill.serviceCharge + defaultBill.partsCost + defaultBill.extraCharges;
+      setBookings((prev) => prev.map(b => b.id === id ? { ...b, price: newTotal } : b));
+
       await axios.post(`${BASE_HTTP_URL}/api/booking/generate-bill`, defaultBill);
       console.log(`[BOOKING] Generated bill for booking ${numericId}`);
       return { success: true };
     } catch (error: any) {
       console.error(`[BOOKING] Failed to generate bill:`, error?.response?.data || error?.message);
-      // Fallback to simulation mode so flow can continue even if backend fails
+
       return { success: false, isOffline: true, error: error.response?.data?.message || 'Failed to generate bill.' };
     }
   };
 
   const acceptBooking = async (id: string) => updateBookingStatus(id, 'accepted');
   const rejectBooking = async (id: string) => updateBookingStatus(id, 'rejected');
-  const refreshBookings = () => { }; // Bookings arrive via WebSocket only
+
+  const refreshBookings = async () => {
+    if (!authToken) return;
+
+    try {
+      try {
+        const statsRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/dashboard`);
+        setDashboardStats(statsRes.data);
+      } catch (e: any) {
+        console.log(`[DASHBOARD] Could not fetch stats: ${e.message}`);
+      }
+
+      try {
+        const weeklyRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/weekly-jobs`);
+        setWeeklyJobs(weeklyRes.data || []);
+      } catch (e: any) {
+        console.log(`[WEEKLY-JOBS] Could not fetch weekly jobs: ${e.message}`);
+      }
+
+      // Removed 'ARRIVED' which is not valid on the backend swagger
+      const statuses = ['PENDING', 'ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED'];
+      const allBookings: Booking[] = [];
+
+      for (const status of statuses) {
+        try {
+          const response = await axios.get(`${BASE_HTTP_URL}/api/mechanic/history?status=${status}`);
+          const fetchedBookings = response.data || [];
+
+          fetchedBookings.forEach((b: any) => {
+            allBookings.push({
+              id: String(b.bookingId),
+              customerName: b.customerName || 'Customer',
+              customerPhone: b.customerPhone || '',
+              vehicle: b.problem || 'Unknown Vehicle',
+              serviceType: b.problem || 'Service',
+              price: b.totalAmount || 120,
+              notes: b.problem || '',
+              location: 'Mapped Location',
+              time: b.bookedTime ? new Date(b.bookedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString(),
+              status: b.status?.toLowerCase() || status.toLowerCase(),
+              latitude: b.latitude || 0,
+              longitude: b.longitude || 0,
+              customerId: b.customerId || undefined,
+            });
+          });
+        } catch (err: any) {
+          console.log(`[BOOKING] Could not fetch ${status} bookings: ${err.message}`);
+        }
+      }
+
+      setBookings(allBookings);
+    } catch (error) {
+      console.error('[BOOKING] Failed to refresh bookings history:', error);
+    }
+  };
 
   const addSimulatedBooking = (bookingData: any) => {
     const newBooking: Booking = {
@@ -452,7 +652,47 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     setBookings((prev) => [newBooking, ...prev]);
   };
 
-  // ─── Settings ─────────────────────────────────────────────────────────────
+  const sendLocationToCustomer = async (bookingId: string): Promise<{ success: boolean; isOffline?: boolean; error?: string }> => {
+    const booking = bookingsRef.current.find(b => String(b.id) === String(bookingId));
+    if (!booking) {
+      return { success: false, error: 'Booking not found' };
+    }
+    if (!['accepted', 'in_progress', 'arrived'].includes(booking.status)) {
+      return { success: false, error: 'Location can only be shared after the booking is accepted (booked).' };
+    }
+    const targetUserId = booking.customerId ? Number(booking.customerId) : null;
+    const coords = currentCoordsRef.current;
+
+    if (!coords) {
+      return { success: false, error: 'GPS location coordinates not available yet.' };
+    }
+
+    if (!isSocketConnected || !stompClientRef.current || !stompClientRef.current.connected) {
+      console.log('[SOCKET OFFLINE] Simulating location send to /app/mechanic/location:', {
+        userId: targetUserId || 999,
+        lat: coords.latitude,
+        lon: coords.longitude,
+      });
+      return { success: true, isOffline: true };
+    }
+
+    try {
+      stompClientRef.current.publish({
+        destination: '/app/mechanic/location',
+        body: JSON.stringify({
+          userId: targetUserId || 999,
+          lat: coords.latitude,
+          lon: coords.longitude,
+        }),
+      });
+      console.log('[SOCKET] Manually sent location update to /app/mechanic/location for customer:', targetUserId);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to send location via WebSocket' };
+    }
+  };
+
+  
   const toggleDarkMode = () => setDarkMode((prev) => !prev);
   const toggleNotifications = () => setNotificationsEnabled((prev) => !prev);
   const updateGarageInfo = (info: Partial<GarageInfo>) =>
@@ -473,43 +713,70 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // ─── Provider ──────────────────────────────────────────────────────────────
+  
+  const contextValue = React.useMemo(() => {
+    const completedJobsCount = bookings.filter((b) => b.status === 'completed').length;
+    const dailyEarnings = bookings.filter((b) => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+    const monthlyEarnings = bookings.filter((b) => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+    const totalEarnings = bookings.filter((b) => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+
+    return {
+      isLoggedIn,
+      authToken,
+      authLoading,
+      bookings,
+      darkMode,
+      isOnline,
+      isSocketConnected,
+      currentCoords,
+      mechanicId,
+      completedJobsCount,
+      dailyEarnings,
+      monthlyEarnings,
+      totalEarnings,
+      garageInfo,
+      reviews: [],
+      notificationsEnabled,
+      setIsOnline,
+      setCurrentCoords,
+      toggleDarkMode,
+      toggleNotifications,
+      login,
+      logout,
+      signup,
+      updateBookingStatus,
+      acceptBooking,
+      rejectBooking,
+      refreshBookings,
+      generateBill,
+      addSimulatedBooking,
+      updateGarageInfo,
+      updateProfileOnServer,
+      forgotPassword,
+      verifyOtp,
+      resetPassword,
+      sendLocationToCustomer,
+      dashboardStats,
+      weeklyJobs,
+    };
+  }, [
+    isLoggedIn,
+    authToken,
+    authLoading,
+    bookings,
+    darkMode,
+    isOnline,
+    isSocketConnected,
+    currentCoords,
+    mechanicId,
+    garageInfo,
+    notificationsEnabled,
+    dashboardStats,
+    weeklyJobs,
+  ]);
+
   return (
-    <MechanicContext.Provider
-      value={{
-        isLoggedIn,
-        authToken,
-        authLoading,
-        bookings,
-        darkMode,
-        isOnline,
-        isSocketConnected,
-        currentCoords,
-        mechanicId,
-        completedJobsCount: bookings.filter((b) => b.status === 'completed').length,
-        dailyEarnings: 1100 + bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 120), 0),
-        monthlyEarnings: 4500 + bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 120), 0),
-        totalEarnings: 5600 + bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 120), 0),
-        garageInfo,
-        reviews: [],
-        notificationsEnabled,
-        setIsOnline,
-        setCurrentCoords,
-        toggleDarkMode,
-        toggleNotifications,
-        login,
-        logout,
-        signup,
-        updateBookingStatus,
-        acceptBooking,
-        rejectBooking,
-        refreshBookings,
-        generateBill,
-        addSimulatedBooking,
-        updateGarageInfo,
-        updateProfileOnServer,
-      }}
-    >
+    <MechanicContext.Provider value={contextValue}>
       {children}
     </MechanicContext.Provider>
   );
