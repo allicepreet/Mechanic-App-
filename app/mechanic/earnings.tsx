@@ -18,6 +18,7 @@ export default function EarningsScreen() {
     monthlyEarnings,
     completedJobsCount,
     weeklyJobs,
+    dashboardStats,
   } = useMechanic();
 
   const insets = useSafeAreaInsets();
@@ -45,15 +46,18 @@ export default function EarningsScreen() {
         { day: 'Sun', amount: 0, jobs: 0, date: 'Sunday' },
       ];
     }
-    return weeklyJobs.map((item) => {
-      const dayShort = item.day.substring(0, 3);
+    return weeklyJobs.map((item: any) => {
+      const rawDay = item.day || item.dayOfWeek || item.date || 'Day';
+      const dayStr = String(rawDay);
+      const dayShort = dayStr.length > 3 ? dayStr.substring(0, 3) : dayStr;
+      const jobsCount = Number(item.totalJobs || item.jobsCount || item.jobs || 0);
       // Let's estimate amount based on jobs count
-      const estimatedAmt = item.totalJobs * 250;
+      const estimatedAmt = jobsCount * 250;
       return {
         day: dayShort,
         amount: estimatedAmt,
-        jobs: item.totalJobs,
-        date: item.day,
+        jobs: jobsCount,
+        date: dayStr,
       };
     });
   }, [weeklyJobs]);
@@ -88,6 +92,37 @@ export default function EarningsScreen() {
           completedJobs={completedJobsCount}
           darkMode={darkMode}
         />
+
+        {/* DYNAMIC DASHBOARD STATS OVERVIEW */}
+        {dashboardStats && (
+          <View style={styles.statsGrid}>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="briefcase-outline" size={20} color={primaryAccent} />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.totalJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Total Jobs</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.completedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Completed</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="car-sport-outline" size={20} color="#3B82F6" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.acceptedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Accepted</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="time-outline" size={20} color="#F59E0B" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.pendingJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Pending</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+              <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+              <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.rejectedJobs}</Text>
+              <Text style={[styles.statLabel, { color: textSecondary }]}>Rejected</Text>
+            </View>
+          </View>
+        )}
 
         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Performance Analytics</Text>
         <View style={[styles.analyticsCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -597,5 +632,33 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '500',
     marginTop: 1,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 16,
+    gap: 8,
+  },
+  statBox: {
+    width: '31%',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  statLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
 });

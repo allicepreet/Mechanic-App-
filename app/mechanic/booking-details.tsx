@@ -24,6 +24,7 @@ export default function BookingDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { bookings, darkMode, acceptBooking, rejectBooking, updateBookingStatus, generateBill } = useMechanic();
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
   const [serviceFee, setServiceFee] = useState('120');
   const [partsCost, setPartsCost] = useState('0');
@@ -100,16 +101,34 @@ export default function BookingDetailsScreen() {
   const handleUpdateStatus = async () => {
     if (booking.status === 'accepted') {
       try {
+        setIsUpdatingStatus(true);
         await updateBookingStatus(booking.id, 'in_progress');
-        Platform.OS === 'web' ? window.alert('Status Updated: You are now en route to the breakdown site.') : Alert.alert('Status Updated', 'You are now en route to the breakdown site.');
+        Platform.OS === 'web'
+          ? window.alert('Status Updated: You are now en route to the breakdown site.')
+          : Alert.alert('Status Updated', 'You are now en route to the breakdown site.');
       } catch (error) {
-        Platform.OS === 'web' ? window.alert('Error: Failed to update booking status.') : Alert.alert('Error', 'Failed to update booking status.');
+        Platform.OS === 'web'
+          ? window.alert('Error: Failed to update booking status.')
+          : Alert.alert('Error', 'Failed to update booking status.');
+      } finally {
+        setIsUpdatingStatus(false);
       }
     } else if (booking.status === 'in_progress') {
-      
-      router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } });
+      // Mark as arrived — show loading so mechanic sees it worked
+      try {
+        setIsUpdatingStatus(true);
+        await updateBookingStatus(booking.id, 'arrived');
+        Platform.OS === 'web'
+          ? window.alert('Arrived! You have reached the customer location.')
+          : Alert.alert('Arrived! ✅', 'You have reached the customer. Tap "Generate Bill" when ready.');
+      } catch (error) {
+        Platform.OS === 'web'
+          ? window.alert('Error: Failed to mark as arrived.')
+          : Alert.alert('Error', 'Failed to mark as arrived.');
+      } finally {
+        setIsUpdatingStatus(false);
+      }
     } else if (booking.status === 'arrived') {
-  
       setShowBillModal(true);
     }
   };
@@ -307,7 +326,54 @@ export default function BookingDetailsScreen() {
             </View>
           ) : (
             <>
-              <StatusButton status={booking.status as any} onPress={handleUpdateStatus} />
+              {/* When in_progress: show both navigation + a big prominent arrived button */}
+              {booking.status === 'in_progress' && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.carouselBtn, { backgroundColor: '#3B82F6', marginBottom: 12, height: 52 }]}
+                    onPress={() => router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } })}
+                  >
+                    <Text style={[styles.acceptBtnText, { fontSize: 15, letterSpacing: 0.5 }]}>🗺️  View Navigation</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.carouselBtn,
+                      {
+                        backgroundColor: isUpdatingStatus ? 'rgba(16, 185, 129, 0.5)' : '#10B981',
+                        height: 56,
+                        borderRadius: 16,
+                        shadowColor: '#10B981',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.4,
+                        shadowRadius: 8,
+                        elevation: 6,
+                      }
+                    ]}
+                    onPress={handleUpdateStatus}
+                    disabled={isUpdatingStatus}
+                    activeOpacity={0.8}
+                  >
+                    {isUpdatingStatus
+                      ? <ActivityIndicator color="#FFF" size="small" />
+                      : <Text style={[styles.acceptBtnText, { fontSize: 16, letterSpacing: 1 }]}>📍  I've Arrived</Text>
+                    }
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* All other statuses use StatusButton */}
+              {booking.status !== 'in_progress' && (
+                <>
+                  {isUpdatingStatus ? (
+                    <View style={[styles.carouselBtn, { backgroundColor: 'rgba(16, 185, 129, 0.15)', height: 52, justifyContent: 'center', alignItems: 'center' }]}>
+                      <ActivityIndicator color="#10B981" />
+                    </View>
+                  ) : (
+                    <StatusButton status={booking.status as any} onPress={handleUpdateStatus} />
+                  )}
+                </>
+              )}
+
               {booking.status === 'completed' && (
                 <TouchableOpacity
                   style={{ marginTop: 12, paddingVertical: 12, alignItems: 'center' }}

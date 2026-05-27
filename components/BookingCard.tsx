@@ -91,7 +91,9 @@ export default function BookingCard({
           <View style={styles.hudCell}>
             <Text style={styles.hudCellLabel}>COORDINATES</Text>
             <Text style={[styles.hudCellValue, { color: textPrimary, fontSize: 8 }]} numberOfLines={1}>
-              30.267° N, 97.743° W
+              {booking.latitude && booking.longitude
+                ? `${booking.latitude.toFixed(4)}° N, ${booking.longitude.toFixed(4)}° E`
+                : '12.9716° N, 77.5946° E'}
             </Text>
           </View>
         </View>

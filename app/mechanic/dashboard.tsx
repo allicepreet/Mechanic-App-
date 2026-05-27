@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Platform, Dimensions, RefreshControl, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Platform, Dimensions, RefreshControl, Alert, Modal } from 'react-native';
   import { router, usePathname } from 'expo-router';
 import { useMechanic, Booking } from '@/components/MechanicContext';
 import BookingCard from '@/components/BookingCard';
@@ -7,6 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomNav from '@/components/BottomNav';
+import { BlurView } from 'expo-blur';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -35,7 +36,38 @@ export default function DashboardScreen() {
     currentCoords,
     mechanicId,
     dashboardStats,
+    totalEarnings,
+    dailyEarnings,
+    monthlyEarnings,
+    weeklyJobs,
   } = useMechanic();
+
+  const weeklyData = React.useMemo(() => {
+    if (!weeklyJobs || weeklyJobs.length === 0) {
+      return [
+        { day: 'Mon', jobs: 0 },
+        { day: 'Tue', jobs: 0 },
+        { day: 'Wed', jobs: 0 },
+        { day: 'Thu', jobs: 0 },
+        { day: 'Fri', jobs: 0 },
+        { day: 'Sat', jobs: 0 },
+        { day: 'Sun', jobs: 0 },
+      ];
+    }
+    return weeklyJobs.map((item: any) => {
+      const rawDay = item.day || item.dayOfWeek || item.date || 'Day';
+      const dayStr = String(rawDay);
+      return {
+        day: dayStr.length > 3 ? dayStr.substring(0, 3) : dayStr,
+        jobs: Number(item.totalJobs || item.jobsCount || item.jobs || 0),
+      };
+    });
+  }, [weeklyJobs]);
+
+  const maxWeeklyJobs = React.useMemo(() => {
+    const maxVal = Math.max(...weeklyData.map(d => d.jobs), 0);
+    return maxVal > 0 ? maxVal : 5;
+  }, [weeklyData]);
 
   const pathname = usePathname();
   const [refreshing, setRefreshing] = React.useState(false);
@@ -191,10 +223,6 @@ export default function DashboardScreen() {
                     <Text style={{ color: '#06B6D4', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 }}>
                       <Ionicons name="wifi" size={9} color="#06B6D4" /> SENDING LIVE LOCATION TO CUSTOMER
                     </Text>
-                    <Text style={{ color: textSecondary, fontSize: 9, fontWeight: '600', marginTop: 4, fontFamily: 'monospace' }}>
-                      Endpoint: /topic/user/tracking/{activeJobs[0].customerId || '...'}{'\n'}
-                      Payload: {`{ userId: ${activeJobs[0].customerId || '...'}, lat: ${currentCoords?.latitude.toFixed(4)}, lon: ${currentCoords?.longitude.toFixed(4)} }`}
-                    </Text>
                   </View>
                 )}
                 {isSocketConnected && activeJobs.length === 0 && (
@@ -238,36 +266,73 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* DASHBOARD STATS OVERVIEW */}
+        {/* DYNAMIC DASHBOARD STATS OVERVIEW */}
         {dashboardStats && (
           <View style={styles.statsGrid}>
             <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Ionicons name="briefcase-outline" size={24} color={primaryAccent} />
+              <Ionicons name="briefcase-outline" size={20} color={primaryAccent} />
               <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.totalJobs}</Text>
               <Text style={[styles.statLabel, { color: textSecondary }]}>Total Jobs</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Ionicons name="checkmark-circle-outline" size={24} color="#10B981" />
+              <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
               <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.completedJobs}</Text>
               <Text style={[styles.statLabel, { color: textSecondary }]}>Completed</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Ionicons name="car-sport-outline" size={24} color="#3B82F6" />
+              <Ionicons name="car-sport-outline" size={20} color="#3B82F6" />
               <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.acceptedJobs}</Text>
               <Text style={[styles.statLabel, { color: textSecondary }]}>Accepted</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Ionicons name="time-outline" size={24} color="#F59E0B" />
+              <Ionicons name="time-outline" size={20} color="#F59E0B" />
               <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.pendingJobs}</Text>
               <Text style={[styles.statLabel, { color: textSecondary }]}>Pending</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-              <Ionicons name="close-circle-outline" size={24} color="#EF4444" />
+              <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
               <Text style={[styles.statValue, { color: textPrimary }]}>{dashboardStats.rejectedJobs}</Text>
               <Text style={[styles.statLabel, { color: textSecondary }]}>Rejected</Text>
             </View>
           </View>
         )}
+
+        {/* Weekly Jobs Telemetry Graph */}
+        <View style={[styles.chartCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <View style={styles.chartHeader}>
+            <MaterialCommunityIcons name="chart-bar" size={20} color={primaryAccent} />
+            <Text style={[styles.chartTitle, { color: textPrimary }]}>Weekly Telemetry (Repair Sessions)</Text>
+          </View>
+          
+          <View style={styles.chartContainer}>
+            {weeklyData.map((item: any, idx: number) => {
+              const heightPercent = `${(item.jobs / maxWeeklyJobs) * 100}%`;
+              return (
+                <View key={idx} style={styles.chartColumn}>
+                  <View style={styles.barWrapper}>
+                    <View style={[styles.barTrack, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)' }]}>
+                      <View 
+                        style={[
+                          styles.barFill, 
+                          { 
+                            height: heightPercent as any, 
+                            backgroundColor: primaryAccent 
+                          }
+                        ]} 
+                      />
+                    </View>
+                  </View>
+                  <Text style={[styles.chartDayLabel, { color: textSecondary }]}>
+                    {item.day}
+                  </Text>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: textPrimary, marginTop: 2 }}>
+                    {item.jobs}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
 
         {/* ACTIVE SERVICE TRACKER BANNER */}
         {activeJobs.length > 0 && (
@@ -301,45 +366,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Quick Earnings Dashboard Banner */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push('/mechanic/earnings')}
-          style={[
-            styles.statsCard,
-            darkMode ? styles.statsCardDark : styles.statsCardLight,
-            { borderColor: darkMode ? cardBorder : 'transparent' },
-          ]}
-        >
-          <View style={styles.statsHeader}>
-            <View style={styles.statsLabelContainer}>
-              <MaterialCommunityIcons name="finance" size={18} color={darkMode ? primaryAccent : '#FFFFFF'} />
-              <Text style={[styles.statsTitle, { color: darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)' }]}>EARNINGS</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
-          </View>
 
-          <View style={styles.statsMain}>
-            <View>
-              <Text style={styles.statsSubVal}>Jobs: {dashboardStats?.totalJobs ?? 0}</Text>
-              <Text style={styles.statsSubLbl}>Total</Text>
-            </View>
-
-            <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
-
-            <View>
-              <Text style={[styles.statsSubVal, { color: darkMode ? '#10B981' : '#FFFFFF' }]}>{dashboardStats?.acceptedJobs ?? 0}</Text>
-              <Text style={styles.statsSubLbl}>Accepted</Text>
-            </View>
-
-            <View style={[styles.statDivider, { backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)' }]} />
-
-            <View>
-              <Text style={styles.statsSubVal}>{dashboardStats?.completedJobs ?? 0}</Text>
-              <Text style={styles.statsSubLbl}>Completed Jobs</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
 
         {/* Notification-Style Incoming Requests */}
         <View style={styles.sectionHeader}>
@@ -362,78 +389,91 @@ export default function DashboardScreen() {
             </Text>
           </View>
         ) : topRequest ? (
-          <View style={[styles.notifContainer, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => router.push({ pathname: '/mechanic/booking-details', params: { id: topRequest.id } })}
-              style={styles.notifRow}
-            >
-              {/* Left: icon + live dot */}
-              <View style={styles.notifIconWrap}>
-                <View style={[styles.notifIconBg, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-                  <MaterialCommunityIcons
-                    name={topRequest.vehicle.toLowerCase().includes('tesla') || topRequest.vehicle.toLowerCase().includes('etron') ? 'ev-station' : 'car-wrench'}
-                    size={18}
-                    color="#EF4444"
-                  />
+          <Modal
+            visible={!!topRequest && activeJobs.length === 0}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => {}}
+          >
+            <View style={styles.modalBackdrop}>
+              <BlurView
+                intensity={darkMode ? 85 : 60}
+                tint={darkMode ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFillObject}
+              />
+              
+              <View style={[styles.modalCard, { backgroundColor: darkMode ? '#1E2022' : '#FFFFFF', borderColor: cardBorder }]}>
+                {/* Urgent Call Header Alert */}
+                <View style={styles.modalAlertHeader}>
+                  <View style={styles.modalPulseOuter}>
+                    <View style={styles.modalPulseInner}>
+                      <MaterialCommunityIcons
+                        name={topRequest.vehicle.toLowerCase().includes('tesla') || topRequest.vehicle.toLowerCase().includes('etron') ? 'ev-station' : 'car-wrench'}
+                        size={32}
+                        color="#00E5FF"
+                      />
+                    </View>
+                  </View>
+                  <Text style={[styles.modalUrgentLabel, { color: primaryAccent }]}>IMMEDIATE DISPATCH REQUIRED</Text>
                 </View>
-                <View style={styles.notifLiveDot} />
-              </View>
 
-              {/* Center: notification body */}
-              <View style={styles.notifBody}>
-                <View style={styles.notifTitleRow}>
-                  <Text style={[styles.notifTitle, { color: textPrimary }]} numberOfLines={1}>
-                    {topRequest.serviceType}
-                  </Text>
-                  <Text style={[styles.notifTime, { color: textSecondary }]}>{topRequest.time}</Text>
-                </View>
-                <Text style={[styles.notifSub, { color: textSecondary }]} numberOfLines={1}>
-                  {topRequest.customerName} · {topRequest.vehicle}
-                </Text>
-                <View style={styles.notifMeta}>
-                  <Ionicons name="location-sharp" size={10} color="#EF4444" />
-                  <Text style={[styles.notifMetaText, { color: textSecondary }]} numberOfLines={1}>
-                    {topRequest.location}
-                  </Text>
+                
+                {/* Customer Details Sheet */}
+                <View style={[styles.modalSpecsContainer, { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderColor: cardBorder }]}>
+                  <View style={styles.modalSpecRow}>
+                    <Ionicons name="person" size={16} color={primaryAccent} />
+                    <Text style={[styles.modalSpecText, { color: textPrimary }]}>{topRequest.customerName}</Text>
+                  </View>
+                  <View style={styles.modalSpecRow}>
+                    <Ionicons name="car-sport" size={16} color={primaryAccent} />
+                    <Text style={[styles.modalSpecText, { color: textPrimary }]}>{topRequest.vehicle}</Text>
+                  </View>
+                  <View style={styles.modalSpecRow}>
+                    <Ionicons name="location-sharp" size={16} color="#EF4444" />
+                    <Text style={[styles.modalSpecText, { color: textPrimary }]} numberOfLines={2}>
+                      {topRequest.location}
+                    </Text>
+                  </View>
                   {topRequest.distance ? (
-                    <>
-                      <Text style={[styles.notifMetaDot, { color: textSecondary }]}>·</Text>
-                      <Text style={[styles.notifMetaText, { color: '#F59E0B' }]}>{topRequest.distance}</Text>
-                      <Text style={[styles.notifMetaDot, { color: textSecondary }]}>·</Text>
-                      <Text style={[styles.notifMetaText, { color: '#06B6D4' }]}>{topRequest.eta}</Text>
-                    </>
+                    <View style={styles.modalSpecRow}>
+                      <MaterialCommunityIcons name="map-marker-distance" size={16} color="#F59E0B" />
+                      <Text style={[styles.modalSpecText, { color: '#F59E0B', fontWeight: '800' }]}>
+                        {topRequest.distance} · {topRequest.eta} en route
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
-                <View style={styles.notifActions}>
+
+                {/* Massive Action Buttons */}
+                <View style={styles.modalActionsRow}>
                   <TouchableOpacity
-                    style={[styles.notifBtnDecline, { borderColor: darkMode ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)' }]}
+                    activeOpacity={0.85}
+                    style={styles.modalBtnDecline}
                     onPress={(e) => {
                       e.stopPropagation();
-                      Alert.alert('Decline Request', `Reject service call from ${topRequest.customerName}?`, [
+                      Alert.alert('Decline Request', `Decline service call from ${topRequest.customerName}?`, [
                         { text: 'Cancel', style: 'cancel' },
                         { text: 'Decline', style: 'destructive', onPress: () => rejectBooking(topRequest.id) },
                       ]);
                     }}
                   >
-                    <Text style={styles.notifBtnDeclineText}>Decline</Text>
+                    <Text style={styles.modalBtnDeclineText}>Decline</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
-                    style={styles.notifBtnAccept}
+                    activeOpacity={0.85}
+                    style={styles.modalBtnAccept}
                     onPress={(e) => {
                       e.stopPropagation();
                       acceptBooking(topRequest.id);
                     }}
                   >
-                    <Text style={styles.notifBtnAcceptText}>Accept</Text>
+                    <Text style={styles.modalBtnAcceptText}>ACCEPT JOB</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-
-              {/* Right: price */}
-              <Text style={[styles.notifPrice, { color: '#10B981' }]}>Rs.{topRequest.price}</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          </Modal>
         ) : !isOnline ? (
           <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
             <Ionicons name="eye-off-outline" size={40} color={textSecondary} />
@@ -484,9 +524,139 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create<any>({
   container: {
     flex: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  modalAlertHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalPulseOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 229, 255, 0.25)',
+  },
+  modalPulseInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0, 229, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalUrgentLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  modalService: {
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: 0.3,
+  },
+  modalPriceContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalPriceLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10B981',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  modalPriceValue: {
+    fontSize: 34,
+    fontWeight: '950',
+    color: '#10B981',
+    letterSpacing: -0.5,
+  },
+  modalSpecsContainer: {
+    width: '100%',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
+  },
+  modalSpecRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalSpecText: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalBtnDecline: {
+    flex: 1,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
+    borderColor: '#EF4444',
+  },
+  modalBtnDeclineText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  modalBtnAccept: {
+    flex: 1.8,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#00E5FF',
+    shadowColor: '#00E5FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  modalBtnAcceptText: {
+    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 1.5,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1226,5 +1396,58 @@ const styles = StyleSheet.create({
   notifQueueLink: {
     fontSize: 11,
     fontWeight: '800',
+  },
+  // Weekly Chart Telemetry Styles
+  chartCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 24,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 8,
+    letterSpacing: 0.3,
+  },
+  chartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    paddingHorizontal: 8,
+  },
+  chartColumn: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  barWrapper: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  barTrack: {
+    width: 12,
+    height: '100%',
+    justifyContent: 'flex-end',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: 6,
+  },
+  chartDayLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 6,
   },
 });

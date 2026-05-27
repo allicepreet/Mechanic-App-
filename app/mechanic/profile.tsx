@@ -25,8 +25,14 @@ const GARAGE_DOCUMENTS: {
 ];
 
 export default function ProfileScreen() {
-  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, updateProfileOnServer, logout, isOnline, setIsOnline, resetPassword } = useMechanic();
+  const { garageInfo, darkMode, completedJobsCount, updateGarageInfo, updateProfileOnServer, logout, isOnline, setIsOnline, resetPassword, reviews } = useMechanic();
   const insets = useSafeAreaInsets();
+
+  const averageRating = React.useMemo(() => {
+    if (!reviews || reviews.length === 0) return '5.0';
+    const sum = reviews.reduce((acc: number, r: any) => acc + r.rating, 0);
+    return (sum / reviews.length).toFixed(1);
+  }, [reviews]);
 
   const [editMode, setEditMode] = useState(false);
   const [shopName, setShopName] = useState(garageInfo.name);
@@ -179,14 +185,14 @@ export default function ProfileScreen() {
             onPress={() => router.push('/mechanic/reviews')}
           >
             <View style={styles.ratingRow}>
-              <Text style={styles.counterNum}>--</Text>
+              <Text style={styles.counterNum}>{averageRating}</Text>
               <Ionicons name="star" size={14} color="#F59E0B" style={styles.starIcon} />
             </View>
             <Text style={[styles.counterLabel, { color: textSecondary }]}>Rating Feedback</Text>
           </TouchableOpacity>
 
           <View style={[styles.counterBox, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Text style={styles.counterNum}>--</Text>
+            <Text style={styles.counterNum}>8+</Text>
             <Text style={[styles.counterLabel, { color: textSecondary }]}>Years Exp</Text>
           </View>
         </View>

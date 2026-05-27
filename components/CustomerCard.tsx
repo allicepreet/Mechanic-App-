@@ -71,16 +71,6 @@ export default function CustomerCard({
       });
   };
 
-  const handleNavigation = () => {
-    if (bookingId) {
-      import('expo-router').then(({ router }) => {
-        router.push({ pathname: '/mechanic/navigation', params: { id: bookingId } });
-      });
-    } else {
-      Platform.OS === 'web' ? window.alert('Error: No booking ID found for navigation.') : Alert.alert('Error', 'No booking ID found for navigation.');
-    }
-  };
-
   const handleSendLocation = async () => {
     if (!bookingId) {
       Platform.OS === 'web' 
@@ -136,10 +126,6 @@ export default function CustomerCard({
           <Text style={styles.smsBtnText}>Message</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleNavigation} style={[styles.actionBtn, styles.navBtn]}>
-          <Ionicons name="navigate" size={14} color="#FFFFFF" style={styles.btnIcon} />
-          <Text style={styles.navBtnText}>Navigate</Text>
-        </TouchableOpacity>
       </View>
 
       {isBooked && (

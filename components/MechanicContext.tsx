@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Client } from '@stomp/stompjs';
 import axios from 'axios';
+import { Audio } from 'expo-av';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Platform, Vibration } from 'react-native';
-import { Audio } from 'expo-av';
 import SockJS from 'sockjs-client';
+import { router } from 'expo-router';
 
 export interface Booking {
   id: string;
@@ -105,6 +106,32 @@ const MechanicContext = createContext<MechanicContextType | null>(null);
 const BASE_HTTP_URL = 'http://192.168.0.42:8080';
 const BASE_WS_URL = 'ws://192.168.0.42:8080/ws/websocket';
 
+// Dynamic Axios Request Interceptor for selective routing (.77 vs .42)
+axios.interceptors.request.use(
+  (config) => {
+    if (config.url) {
+      const isAlt = 
+        config.url.includes('/api/mechanic/dashboard') ||
+        config.url.includes('/api/booking/reject/') ||
+        config.url.includes('/api/mechanic/weekly-jobs') ||
+        config.url.includes('/api/feedback/mechanic/all') ||
+        config.url.includes('/api/feedback/');
+
+      const targetIp = isAlt ? '192.168.0.77:8080' : '192.168.0.42:8080';
+      
+      // Force replace any of the base IPs with the correct target IP
+      config.url = config.url
+        .replace('192.168.0.42:8080', targetIp)
+        .replace('192.168.0.77:8080', targetIp)
+        .replace('localhost:8080', targetIp);
+
+      console.log(`[ROUTE INTERCEPT] Routed endpoint request to target server (${isAlt ? '.77' : '.42'}): ${config.url}`);
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // ─── Web-Safe Storage Helper ─────────────────────────────────────────────────
 const Storage = {
   setItem: async (key: string, value: string) => {
@@ -139,6 +166,8 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+
   const [weeklyJobs, setWeeklyJobs] = useState<{ day: string; totalJobs: number }[]>([]);
 
   // Sync bookings to storage
@@ -161,6 +190,22 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     if (isLoggedIn && authToken) {
       refreshBookings();
     }
+  }, [isLoggedIn, authToken]);
+
+  // Fast Background Polling backup specifically for instant updates on phone/mobile
+  useEffect(() => {
+    if (!isLoggedIn || !authToken) return;
+
+    // Poll every 5 seconds (active-only: PENDING/ACCEPTED/IN_PROGRESS only) for near-instant request delivery
+    // This does NOT hit history/feedback/weekly-jobs endpoints — only the 3 active status queries
+    const intervalTime = 5000;
+
+    const intervalId = setInterval(() => {
+      console.log(`[POLLING] Fast background check for new requests (${Platform.OS})...`);
+      refreshBookings(true);
+    }, intervalTime);
+
+    return () => clearInterval(intervalId);
   }, [isLoggedIn, authToken]);
 
   const [mechanicId, setMechanicId] = useState<string>('5');
@@ -200,15 +245,61 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
 
   const playNotificationSound = async () => {
     try {
-      Vibration.vibrate([0, 500, 200, 500]);
+      Vibration.vibrate([0, 200, 100, 200]);
       const { sound } = await Audio.Sound.createAsync(
-        require('../assets/bell.wav')
+        require('../assets/buzzer.ogg')
       );
       await sound.playAsync();
     } catch (error) {
       console.log('[AUDIO] Error playing notification sound', error);
     }
   };
+
+  const ringtoneRef = useRef<any>(null);
+
+  const startRingtone = async () => {
+    if (ringtoneRef.current) return; // Already ringing
+    try {
+      console.log('[AUDIO] Starting call ringtone loop...');
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/buzzer.ogg'),
+        { shouldPlay: true, isLooping: true }
+      );
+      ringtoneRef.current = sound;
+      
+      // Repeating rapid vibration pattern while ringing (150ms on, 100ms off) to simulate a physical buzzer
+      Vibration.vibrate([0, 150, 100, 150], true);
+    } catch (error) {
+      console.log('[AUDIO] Error starting call ringtone:', error);
+    }
+  };
+
+  const stopRingtone = async () => {
+    if (!ringtoneRef.current) return;
+    try {
+      console.log('[AUDIO] Stopping call ringtone...');
+      Vibration.cancel();
+      await ringtoneRef.current.stopAsync();
+      await ringtoneRef.current.unloadAsync();
+      ringtoneRef.current = null;
+    } catch (error) {
+      console.log('[AUDIO] Error stopping call ringtone:', error);
+    }
+  };
+
+  // Automatically manage dynamic incoming call ringtone ring/vibrate state
+  useEffect(() => {
+    const hasPending = bookings.some(b => b.status === 'pending');
+    if (isLoggedIn && isOnline && hasPending) {
+      startRingtone();
+    } else {
+      stopRingtone();
+    }
+    // Clean up ringtone on unmount
+    return () => {
+      stopRingtone();
+    };
+  }, [bookings, isLoggedIn, isOnline]);
 
   // ─── WebSocket / STOMP Connection ─────────────────────────────────────────
   useEffect(() => {
@@ -221,7 +312,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       console.log('[STOMP] Initializing network socket stream...');
 
       const client = new Client({
-        brokerURL: `${BASE_HTTP_URL.replace('http', 'ws')}/ws/websocket`,
+        webSocketFactory: () => new SockJS('http://192.168.0.42:8080/ws/websocket'),
         connectHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
         debug: (str) => {
           console.log('[STOMP DEBUG]', str);
@@ -234,6 +325,8 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       client.onConnect = (frame) => {
         console.log('[STOMP] Connected to Message Broker!', frame);
         setIsSocketConnected(true);
+        // Immediately fetch active bookings on (re)connect to catch anything missed while socket was down
+        refreshBookings(true);
 
         client.subscribe(`/topic/mechanic/${mechanicId}`, (message) => {
           if (message.body) {
@@ -257,10 +350,10 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
               setBookings((prev) => {
                 // avoid duplicate bookings
                 if (prev.some(b => b.id === incomingRequest.id)) return prev;
-                
+
                 // New incoming booking! Play notification immediately
                 playNotificationSound();
-                
+
                 return [incomingRequest, ...prev];
               });
             } catch (err) {
@@ -496,6 +589,11 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       if (status === 'accepted') {
         await axios.patch(`${BASE_HTTP_URL}/api/booking/accept/${numericId}`);
         console.log(`[BOOKING] Successfully accepted booking ${numericId} on server`);
+        
+        // Redirect to booking details screen for the accepted job immediately
+        setTimeout(() => {
+          router.push({ pathname: '/mechanic/booking-details', params: { id } });
+        }, 100);
       } else if (status === 'rejected') {
         await axios.patch(`${BASE_HTTP_URL}/api/booking/reject/${numericId}`);
         console.log(`[BOOKING] Successfully rejected booking ${numericId} on server`);
@@ -588,26 +686,33 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
   const acceptBooking = async (id: string) => updateBookingStatus(id, 'accepted');
   const rejectBooking = async (id: string) => updateBookingStatus(id, 'rejected');
 
-  const refreshBookings = async () => {
+  const refreshBookings = React.useCallback(async (onlyActive: boolean = false) => {
     if (!authToken) return;
 
     try {
-      try {
-        const statsRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/dashboard`);
-        setDashboardStats(statsRes.data);
-      } catch (e: any) {
-        console.log(`[DASHBOARD] Could not fetch stats: ${e.message}`);
+      // Only fetch heavy stats on full refresh (not on fast active-only polls)
+      if (!onlyActive) {
+        try {
+          const statsRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/dashboard`);
+          setDashboardStats(statsRes.data);
+        } catch (e: any) {
+          console.log(`[DASHBOARD] Could not fetch stats: ${e.message}`);
+        }
       }
 
-      try {
-        const weeklyRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/weekly-jobs`);
-        setWeeklyJobs(weeklyRes.data || []);
-      } catch (e: any) {
-        console.log(`[WEEKLY-JOBS] Could not fetch weekly jobs: ${e.message}`);
+      if (!onlyActive) {
+        try {
+          const weeklyRes = await axios.get(`${BASE_HTTP_URL}/api/mechanic/weekly-jobs`);
+          setWeeklyJobs(weeklyRes.data || []);
+        } catch (e: any) {
+          console.log(`[WEEKLY-JOBS] Could not fetch weekly jobs: ${e.message}`);
+        }
       }
 
       // Removed 'ARRIVED' which is not valid on the backend swagger
-      const statuses = ['PENDING', 'ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED'];
+      const statuses = onlyActive 
+        ? ['PENDING', 'ACCEPTED', 'IN_PROGRESS']
+        : ['PENDING', 'ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED'];
       const allBookings: Booking[] = [];
 
       for (const status of statuses) {
@@ -637,11 +742,52 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      setBookings(allBookings);
+      // Check if there is a new pending booking that we didn't have before
+      const hasNewPending = allBookings.some(newB => 
+        newB.status === 'pending' && 
+        !bookingsRef.current.some(oldB => String(oldB.id) === String(newB.id))
+      );
+      if (hasNewPending) {
+        console.log('[POLL] Detected new pending request! Playing alert sound.');
+        playNotificationSound();
+      }
+
+      if (onlyActive) {
+        setBookings((prev) => {
+          const staticBookings = prev.filter(b => b.status === 'completed' || b.status === 'rejected');
+          // Filter out any duplicates that might now be in allBookings (e.g. if their status changed)
+          const filteredStatic = staticBookings.filter(sb => !allBookings.some(ab => String(ab.id) === String(sb.id)));
+          return [...allBookings, ...filteredStatic];
+        });
+      } else {
+        setBookings(allBookings);
+      }
+
+      if (!onlyActive) {
+        try {
+          const feedbackRes = await axios.get(`${BASE_HTTP_URL}/api/feedback/mechanic/all`);
+          const fetchedFeedbacks = feedbackRes.data || [];
+          const mappedReviews: Review[] = fetchedFeedbacks.map((f: any) => {
+            const matchingBooking = allBookings.find(b => String(b.id) === String(f.bookingId));
+            const dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            return {
+              id: String(f.id),
+              customerName: matchingBooking?.customerName || 'Verified Client',
+              rating: Number(f.rating) || 5,
+              comment: f.review || 'Excellent Service',
+              date: dateStr,
+              service: matchingBooking?.serviceType || 'Automotive Diagnostics & Tuning',
+            };
+          });
+          setReviews(mappedReviews);
+        } catch (e: any) {
+          console.log(`[FEEDBACK] Could not fetch feedbacks: ${e.message}`);
+        }
+      }
     } catch (error) {
       console.error('[BOOKING] Failed to refresh bookings history:', error);
     }
-  };
+  }, [authToken]);
 
   const addSimulatedBooking = (bookingData: any) => {
     const newBooking: Booking = {
@@ -692,7 +838,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  
+
   const toggleDarkMode = () => setDarkMode((prev) => !prev);
   const toggleNotifications = () => setNotificationsEnabled((prev) => !prev);
   const updateGarageInfo = (info: Partial<GarageInfo>) =>
@@ -713,7 +859,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  
+
   const contextValue = React.useMemo(() => {
     const completedJobsCount = bookings.filter((b) => b.status === 'completed').length;
     const dailyEarnings = bookings.filter((b) => b.status === 'completed').reduce((sum, b) => sum + (Number(b.price) || 0), 0);
@@ -735,7 +881,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       monthlyEarnings,
       totalEarnings,
       garageInfo,
-      reviews: [],
+      reviews,
       notificationsEnabled,
       setIsOnline,
       setCurrentCoords,
@@ -773,6 +919,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     notificationsEnabled,
     dashboardStats,
     weeklyJobs,
+    reviews,
   ]);
 
   return (
