@@ -14,8 +14,8 @@ export default function StatusButton({ status, onPress }: StatusButtonProps) {
       case 'accepted':
         return {
           bg: '#06B6D4',
-          text: 'Start Navigation',
-          icon: 'navigation',
+          text: 'Depart to Customer',
+          icon: 'car',
           enabled: true,
         };
       case 'in_progress':

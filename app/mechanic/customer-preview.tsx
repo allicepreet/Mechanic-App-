@@ -524,7 +524,6 @@ export default function CustomerPreviewScreen() {
                 </View>
               </View>
 
-              {/* Custom specs */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: textSecondary }]}>ENGINE / BATTERY CUSTOM INSTRUCTIONS</Text>
                 <TextInput
@@ -538,7 +537,7 @@ export default function CustomerPreviewScreen() {
                 />
               </View>
 
-              {/* Dispatch Action */}
+             
               <TouchableOpacity
                 style={[styles.submitBtn, { backgroundColor: primaryAccent }]}
                 onPress={handleSubmit}

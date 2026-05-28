@@ -2,10 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Client } from '@stomp/stompjs';
 import axios from 'axios';
 import { Audio } from 'expo-av';
+import { router } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Platform, Vibration } from 'react-native';
 import SockJS from 'sockjs-client';
-import { router } from 'expo-router';
+if (typeof global !== 'undefined' && !global.TextEncoder) {
+  global.TextEncoder = class {
+    encode(str: string) {
+      const arr = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) arr[i] = str.charCodeAt(i);
+      return arr;
+    }
+  } as any;
+  global.TextDecoder = class {
+    decode(arr: Uint8Array) {
+      let str = '';
+      for (let i = 0; i < arr.length; i++) {
+        str += String.fromCharCode(arr[i]);
+      }
+      return str;
+    }
+  } as any;
+}
 
 export interface Booking {
   id: string;
@@ -103,26 +121,29 @@ interface MechanicContextType {
 
 const MechanicContext = createContext<MechanicContextType | null>(null);
 
-const BASE_HTTP_URL = 'http://192.168.0.42:8080';
-const BASE_WS_URL = 'ws://192.168.0.42:8080/ws/websocket';
+const BASE_HTTP_URL = 'http://192.168.88.5:8080';
+const BASE_WS_URL = 'ws://192.168.88.5:8080/ws/websocket';
+
+// Clear existing interceptors to prevent stacking during React Fast Refresh
+axios.interceptors.request.clear();
 
 // Dynamic Axios Request Interceptor for selective routing (.77 vs .42)
 axios.interceptors.request.use(
   (config) => {
     if (config.url) {
-      const isAlt = 
+      const isAlt =
         config.url.includes('/api/mechanic/dashboard') ||
-        config.url.includes('/api/booking/reject/') ||
         config.url.includes('/api/mechanic/weekly-jobs') ||
         config.url.includes('/api/feedback/mechanic/all') ||
         config.url.includes('/api/feedback/');
 
-      const targetIp = isAlt ? '192.168.0.77:8080' : '192.168.0.42:8080';
-      
+      const targetIp = isAlt ? '192.168.88.5:8081' : '192.168.88.5:8080';
+
       // Force replace any of the base IPs with the correct target IP
       config.url = config.url
-        .replace('192.168.0.42:8080', targetIp)
-        .replace('192.168.0.77:8080', targetIp)
+        .replace('192.168.88.11:8080', targetIp)
+        .replace('192.168.88.5:8080', targetIp)
+        .replace('192.168.88.5:8081', targetIp)
         .replace('localhost:8080', targetIp);
 
       console.log(`[ROUTE INTERCEPT] Routed endpoint request to target server (${isAlt ? '.77' : '.42'}): ${config.url}`);
@@ -132,7 +153,7 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── Web-Safe Storage Helper ─────────────────────────────────────────────────
+
 const Storage = {
   setItem: async (key: string, value: string) => {
     if (Platform.OS === 'web') {
@@ -163,14 +184,20 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [isSocketConnectedState, setIsSocketConnectedState] = useState(false);
+  const isSocketConnectedRef = useRef(false);
+  const isSocketConnected = isSocketConnectedState;
+  const setIsSocketConnected = (val: boolean) => {
+    setIsSocketConnectedState(val);
+    isSocketConnectedRef.current = val;
+  };
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
 
   const [weeklyJobs, setWeeklyJobs] = useState<{ day: string; totalJobs: number }[]>([]);
 
-  // Sync bookings to storage
+
   useEffect(() => {
     if (bookings.length > 0) {
       Storage.setItem('mechanic_bookings', JSON.stringify(bookings)).catch(console.error);
@@ -192,22 +219,19 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isLoggedIn, authToken]);
 
-  // Fast Background Polling backup specifically for instant updates on phone/mobile
+  // Restored Fallback Polling for Active Bookings to ensure requests always arrive
   useEffect(() => {
     if (!isLoggedIn || !authToken) return;
 
-    // Poll every 5 seconds (active-only: PENDING/ACCEPTED/IN_PROGRESS only) for near-instant request delivery
-    // This does NOT hit history/feedback/weekly-jobs endpoints — only the 3 active status queries
-    const intervalTime = 5000;
-
     const intervalId = setInterval(() => {
-      console.log(`[POLLING] Fast background check for new requests (${Platform.OS})...`);
-      refreshBookings(true);
-    }, intervalTime);
+      // Poll active jobs as a fallback mechanism
+      if (!isSocketConnectedRef.current || Platform.OS !== 'web') {
+        refreshBookings(true);
+      }
+    }, 4000);
 
     return () => clearInterval(intervalId);
   }, [isLoggedIn, authToken]);
-
   const [mechanicId, setMechanicId] = useState<string>('5');
 
   const fetchUserProfile = async (token: string) => {
@@ -266,8 +290,8 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
         { shouldPlay: true, isLooping: true }
       );
       ringtoneRef.current = sound;
-      
-      // Repeating rapid vibration pattern while ringing (150ms on, 100ms off) to simulate a physical buzzer
+
+
       Vibration.vibrate([0, 150, 100, 150], true);
     } catch (error) {
       console.log('[AUDIO] Error starting call ringtone:', error);
@@ -287,7 +311,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Automatically manage dynamic incoming call ringtone ring/vibrate state
+
   useEffect(() => {
     const hasPending = bookings.some(b => b.status === 'pending');
     if (isLoggedIn && isOnline && hasPending) {
@@ -295,13 +319,13 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
     } else {
       stopRingtone();
     }
-    // Clean up ringtone on unmount
+
     return () => {
       stopRingtone();
     };
   }, [bookings, isLoggedIn, isOnline]);
 
-  // ─── WebSocket / STOMP Connection ─────────────────────────────────────────
+
   useEffect(() => {
     if (!isLoggedIn) {
       if (stompClientRef.current) stompClientRef.current.deactivate();
@@ -312,14 +336,15 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       console.log('[STOMP] Initializing network socket stream...');
 
       const client = new Client({
-        webSocketFactory: () => new SockJS('http://192.168.0.42:8080/ws/websocket'),
+        brokerURL: 'ws://192.168.88.5:8080/ws/websocket',
         connectHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
         debug: (str) => {
           console.log('[STOMP DEBUG]', str);
         },
         reconnectDelay: 5000,
-        heartbeatIncoming: 4000,
-        heartbeatOutgoing: 4000,
+        // Disable heartbeats for React Native to prevent unexpected drops
+        heartbeatIncoming: 0,
+        heartbeatOutgoing: 0,
       });
 
       client.onConnect = (frame) => {
@@ -348,10 +373,9 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
                 customerId: parsedPayload.customerId || parsedPayload.userId || parsedPayload.id,
               };
               setBookings((prev) => {
-                // avoid duplicate bookings
+
                 if (prev.some(b => b.id === incomingRequest.id)) return prev;
 
-                // New incoming booking! Play notification immediately
                 playNotificationSound();
 
                 return [incomingRequest, ...prev];
@@ -364,11 +388,16 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       };
 
       client.onStompError = (frame) => {
-        console.error('[STOMP] Broker reported error: ' + frame.headers['message']);
-        console.error('[STOMP] Additional details: ' + frame.body);
+        console.error('[STOMP ERROR] Broker reported error: ' + frame.headers['message']);
+        console.error('[STOMP ERROR] Additional details: ' + frame.body);
       };
 
-      client.onWebSocketClose = () => {
+      client.onWebSocketError = (event) => {
+        console.error('[STOMP WS ERROR] WebSocket connection error:', event);
+      };
+
+      client.onWebSocketClose = (event) => {
+        console.error('[STOMP WS CLOSE] WebSocket closed:', event);
         setIsSocketConnected(false);
       };
 
@@ -589,7 +618,7 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
       if (status === 'accepted') {
         await axios.patch(`${BASE_HTTP_URL}/api/booking/accept/${numericId}`);
         console.log(`[BOOKING] Successfully accepted booking ${numericId} on server`);
-        
+
         // Redirect to booking details screen for the accepted job immediately
         setTimeout(() => {
           router.push({ pathname: '/mechanic/booking-details', params: { id } });
@@ -709,66 +738,60 @@ export const MechanicProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Removed 'ARRIVED' which is not valid on the backend swagger
-      const statuses = onlyActive 
-        ? ['PENDING', 'ACCEPTED', 'IN_PROGRESS']
-        : ['PENDING', 'ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED'];
-      const allBookings: Booking[] = [];
-
-      for (const status of statuses) {
-        try {
-          const response = await axios.get(`${BASE_HTTP_URL}/api/mechanic/history?status=${status}`);
-          const fetchedBookings = response.data || [];
-
-          fetchedBookings.forEach((b: any) => {
-            allBookings.push({
-              id: String(b.bookingId),
-              customerName: b.customerName || 'Customer',
-              customerPhone: b.customerPhone || '',
-              vehicle: b.problem || 'Unknown Vehicle',
-              serviceType: b.problem || 'Service',
-              price: b.totalAmount || 120,
-              notes: b.problem || '',
-              location: 'Mapped Location',
-              time: b.bookedTime ? new Date(b.bookedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString(),
-              status: b.status?.toLowerCase() || status.toLowerCase(),
-              latitude: b.latitude || 0,
-              longitude: b.longitude || 0,
-              customerId: b.customerId || undefined,
-            });
-          });
-        } catch (err: any) {
-          console.log(`[BOOKING] Could not fetch ${status} bookings: ${err.message}`);
-        }
-      }
-
-      // Check if there is a new pending booking that we didn't have before
-      const hasNewPending = allBookings.some(newB => 
-        newB.status === 'pending' && 
-        !bookingsRef.current.some(oldB => String(oldB.id) === String(newB.id))
-      );
-      if (hasNewPending) {
-        console.log('[POLL] Detected new pending request! Playing alert sound.');
-        playNotificationSound();
-      }
-
       if (onlyActive) {
+        
+        const statuses = ['PENDING', 'ACCEPTED', 'IN_PROGRESS'];
+        const allBookings: Booking[] = [];
+
+        for (const status of statuses) {
+          try {
+            const response = await axios.get(`${BASE_HTTP_URL}/api/mechanic/history?status=${status}`, {
+              headers: { Authorization: `Bearer ${authToken}` }
+            });
+            const fetchedBookings = response.data || [];
+
+            fetchedBookings.forEach((b: any) => {
+              allBookings.push({
+                id: String(b.bookingId),
+                customerName: b.customerName || 'Customer',
+                customerPhone: b.customerPhone || '',
+                vehicle: b.problem || 'Unknown Vehicle',
+                serviceType: b.problem || 'Service',
+                price: b.totalAmount || 120,
+                notes: b.problem || '',
+                location: 'Mapped Location',
+                time: b.bookedTime ? new Date(b.bookedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString(),
+                status: b.status?.toLowerCase() || status.toLowerCase(),
+                latitude: b.latitude || 0,
+                longitude: b.longitude || 0,
+                customerId: b.customerId || undefined,
+              });
+            });
+          } catch (err: any) {
+            console.log(`[BOOKING] Could not fetch ${status} bookings: ${err.message}`);
+          }
+        }
+
+        const hasNewPending = allBookings.some(newB =>
+          newB.status === 'pending' &&
+          !bookingsRef.current.some(oldB => String(oldB.id) === String(newB.id))
+        );
+        if (hasNewPending) {
+          playNotificationSound();
+        }
+
         setBookings((prev) => {
           const staticBookings = prev.filter(b => b.status === 'completed' || b.status === 'rejected');
-          // Filter out any duplicates that might now be in allBookings (e.g. if their status changed)
           const filteredStatic = staticBookings.filter(sb => !allBookings.some(ab => String(ab.id) === String(sb.id)));
           return [...allBookings, ...filteredStatic];
         });
-      } else {
-        setBookings(allBookings);
       }
-
       if (!onlyActive) {
         try {
           const feedbackRes = await axios.get(`${BASE_HTTP_URL}/api/feedback/mechanic/all`);
           const fetchedFeedbacks = feedbackRes.data || [];
           const mappedReviews: Review[] = fetchedFeedbacks.map((f: any) => {
-            const matchingBooking = allBookings.find(b => String(b.id) === String(f.bookingId));
+            const matchingBooking = bookingsRef.current.find(b => String(b.id) === String(f.bookingId));
             const dateStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
             return {
               id: String(f.id),

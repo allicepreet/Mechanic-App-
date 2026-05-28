@@ -27,6 +27,7 @@ export default function MechanicLayout() {
     >
       <Stack.Screen name="dashboard" options={{ animation: 'none' }} />
       <Stack.Screen name="bookings" options={{ animation: 'none' }} />
+      <Stack.Screen name="history" options={{ animation: 'none' }} />
       <Stack.Screen name="booking-details" />
       <Stack.Screen name="earnings" options={{ animation: 'none' }} />
       <Stack.Screen name="profile" options={{ animation: 'none' }} />

@@ -56,6 +56,7 @@ export default function BottomNav() {
         <NavButton route="/mechanic/dashboard" icon="speedometer" iconFamily="Ionicons" label="Dashboard" />
         <NavButton route="/mechanic/bookings" icon="construct" iconFamily="Ionicons" label="Bookings" />
         <NavButton route="/mechanic/earnings" icon="cash" iconFamily="Ionicons" label="Earnings" />
+        <NavButton route="/mechanic/history" icon="time" iconFamily="Ionicons" label="History" />
         <NavButton route="/mechanic/profile" icon="person" iconFamily="Ionicons" label="Profile" />
       </BlurView>
     </View>

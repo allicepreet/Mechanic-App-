@@ -114,20 +114,11 @@ export default function BookingDetailsScreen() {
         setIsUpdatingStatus(false);
       }
     } else if (booking.status === 'in_progress') {
-      // Mark as arrived — show loading so mechanic sees it worked
-      try {
-        setIsUpdatingStatus(true);
-        await updateBookingStatus(booking.id, 'arrived');
-        Platform.OS === 'web'
-          ? window.alert('Arrived! You have reached the customer location.')
-          : Alert.alert('Arrived! ✅', 'You have reached the customer. Tap "Generate Bill" when ready.');
-      } catch (error) {
-        Platform.OS === 'web'
-          ? window.alert('Error: Failed to mark as arrived.')
-          : Alert.alert('Error', 'Failed to mark as arrived.');
-      } finally {
-        setIsUpdatingStatus(false);
-      }
+      // Instantly route to the bill modal for a seamless experience
+      setShowBillModal(true);
+      
+      // Update status in the background without blocking the UI
+      updateBookingStatus(booking.id, 'arrived').catch(() => console.log('Silent arrived update failed'));
     } else if (booking.status === 'arrived') {
       setShowBillModal(true);
     }
@@ -326,20 +317,14 @@ export default function BookingDetailsScreen() {
             </View>
           ) : (
             <>
-              {/* When in_progress: show both navigation + a big prominent arrived button */}
+              {/* When in_progress: show Action Buttons */}
               {booking.status === 'in_progress' && (
-                <>
-                  <TouchableOpacity
-                    style={[styles.carouselBtn, { backgroundColor: '#3B82F6', marginBottom: 12, height: 52 }]}
-                    onPress={() => router.push({ pathname: '/mechanic/navigation', params: { id: booking.id } })}
-                  >
-                    <Text style={[styles.acceptBtnText, { fontSize: 15, letterSpacing: 0.5 }]}>🗺️  View Navigation</Text>
-                  </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
                   <TouchableOpacity
                     style={[
                       styles.carouselBtn,
                       {
-                        backgroundColor: isUpdatingStatus ? 'rgba(16, 185, 129, 0.5)' : '#10B981',
+                        backgroundColor: '#10B981',
                         height: 56,
                         borderRadius: 16,
                         shadowColor: '#10B981',
@@ -355,10 +340,44 @@ export default function BookingDetailsScreen() {
                   >
                     {isUpdatingStatus
                       ? <ActivityIndicator color="#FFF" size="small" />
-                      : <Text style={[styles.acceptBtnText, { fontSize: 16, letterSpacing: 1 }]}>📍  I've Arrived</Text>
+                      : <Text style={[styles.acceptBtnText, { fontSize: 16, letterSpacing: 1 }]}>Generate Bill</Text>
                     }
                   </TouchableOpacity>
-                </>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.carouselBtn,
+                      {
+                        backgroundColor: '#3B82F6',
+                        height: 56,
+                        borderRadius: 16,
+                        shadowColor: '#3B82F6',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.4,
+                        shadowRadius: 8,
+                        elevation: 6,
+                      }
+                    ]}
+                    onPress={async () => {
+                      try {
+                        setIsUpdatingStatus(true);
+                        await updateBookingStatus(booking.id, 'completed');
+                        Platform.OS === 'web' ? window.alert('Job Completed') : Alert.alert('Success', 'Job Completed');
+                      } catch (e) {
+                        Platform.OS === 'web' ? window.alert('Failed to complete job') : Alert.alert('Error', 'Failed to complete job');
+                      } finally {
+                        setIsUpdatingStatus(false);
+                      }
+                    }}
+                    disabled={isUpdatingStatus}
+                    activeOpacity={0.8}
+                  >
+                    {isUpdatingStatus
+                      ? <ActivityIndicator color="#FFF" size="small" />
+                      : <Text style={[styles.acceptBtnText, { fontSize: 16, letterSpacing: 1 }]}>Complete Job</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
               )}
 
               {/* All other statuses use StatusButton */}
